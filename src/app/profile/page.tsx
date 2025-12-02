@@ -140,9 +140,17 @@ export default function ProfilePage() {
             <div className="mb-8">
               <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-gray-100">Profile Picture</h2>
               <div className="flex items-center gap-6">
-                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white font-bold text-3xl">
-                  {profile.username.charAt(0).toUpperCase()}
-                </div>
+                {profile.avatar_url ? (
+                  <img
+                    src={profile.avatar_url}
+                    alt="Profile"
+                    className="w-24 h-24 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white font-bold text-3xl">
+                    {profile.username.charAt(0).toUpperCase()}
+                  </div>
+                )}
                 <div>
                   <label
                     htmlFor="avatar-upload"
