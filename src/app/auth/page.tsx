@@ -31,19 +31,17 @@ export default function AuthPage() {
         const { data: authData, error: signUpError } = await supabase.auth.signUp({
           email,
           password,
+          options: {
+            data: {
+              username: username,
+            }
+          }
         })
         if (signUpError) throw signUpError
 
-        // Create profile
-        if (authData.user) {
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .insert({
-              id: authData.user.id,
-              username,
-            } as never)
-          if (profileError) throw profileError
-        }
+        // Profile is automatically created by database trigger
+        // Wait a moment for trigger to complete
+        await new Promise(resolve => setTimeout(resolve, 1000))
 
         router.push('/dashboard')
       }
