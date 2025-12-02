@@ -3,6 +3,12 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { supabase } from '@/lib/supabase'
+import { compressImage } from '@/lib/image-utils'
+
+type NoteImage = {
+  id: string
+  image_url: string
+}
 
 type Note = {
   id: string
@@ -11,6 +17,7 @@ type Note = {
   category: string
   created_by: string
   created_at: string
+  images?: NoteImage[]
   profiles: {
     username: string
   }
@@ -29,7 +36,7 @@ export default function NotesTab({ houseId }: { houseId: string }) {
 
   const loadNotes = async () => {
     try {
-      const { data, error } = await supabase
+      const { data: notesData, error } = await supabase
         .from('notes')
         .select(`
           *,
@@ -39,7 +46,20 @@ export default function NotesTab({ houseId }: { houseId: string }) {
         .order('created_at', { ascending: false })
 
       if (error) throw error
-      setNotes((data as any) || [])
+
+      // Load images for each note
+      const notesWithImages = await Promise.all(
+        ((notesData as any) || []).map(async (note: any) => {
+          const { data: images } = await supabase
+            .from('notes_images')
+            .select('id, image_url')
+            .eq('note_id', note.id)
+
+          return { ...note, images: images || [] }
+        })
+      )
+
+      setNotes(notesWithImages)
     } catch (error) {
       console.error('Error loading notes:', error)
     } finally {
@@ -141,6 +161,19 @@ export default function NotesTab({ houseId }: { houseId: string }) {
               <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
                 {note.content}
               </p>
+              {note.images && note.images.length > 0 && (
+                <div className="mt-4 grid grid-cols-2 md:grid-cols-3 gap-2">
+                  {note.images.map((image) => (
+                    <img
+                      key={image.id}
+                      src={image.image_url}
+                      alt="Note attachment"
+                      className="w-full h-32 object-cover rounded-lg cursor-pointer hover:opacity-90 transition"
+                      onClick={() => window.open(image.image_url, '_blank')}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -175,6 +208,7 @@ function AddNoteModal({
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [category, setCategory] = useState('general')
+  const [images, setImages] = useState<File[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -184,7 +218,8 @@ function AddNoteModal({
     setError(null)
 
     try {
-      const { error: noteError } = await supabase
+      // Create note first
+      const { data: noteData, error: noteError } = await supabase
         .from('notes')
         .insert({
           house_id: houseId,
@@ -193,14 +228,53 @@ function AddNoteModal({
           content,
           category,
         } as never)
+        .select()
+        .single()
 
       if (noteError) throw noteError
+
+      const noteId = (noteData as any).id
+
+      // Upload images if any
+      if (images.length > 0) {
+        for (const image of images) {
+          const compressedImage = await compressImage(image)
+          const fileExt = 'jpg'
+          const filePath = `notes/${noteId}-${Math.random()}.${fileExt}`
+
+          const { error: uploadError } = await supabase.storage
+            .from('avatars')
+            .upload(filePath, compressedImage, { upsert: true })
+
+          if (uploadError) throw uploadError
+
+          const { data: { publicUrl } } = supabase.storage
+            .from('avatars')
+            .getPublicUrl(filePath)
+
+          const { error: imageError } = await supabase
+            .from('notes_images')
+            .insert({
+              note_id: noteId,
+              image_url: publicUrl,
+            } as never)
+
+          if (imageError) throw imageError
+        }
+      }
+
       onSuccess()
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to create note'
       setError(errorMessage)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      setImages(Array.from(e.target.files))
     }
   }
 
@@ -252,6 +326,24 @@ function AddNoteModal({
               className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
               placeholder="Write your note here..."
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Attach Images (Optional)
+            </label>
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleImageSelect}
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white text-sm"
+            />
+            {images.length > 0 && (
+              <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                {images.length} image{images.length !== 1 ? 's' : ''} selected
+              </p>
+            )}
           </div>
 
           {error && (

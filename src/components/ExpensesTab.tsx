@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { supabase } from '@/lib/supabase'
+import { formatCurrency } from '@/lib/currency'
 
 type Member = {
   id: string
@@ -23,7 +24,7 @@ type Expense = {
   }
 }
 
-export default function ExpensesTab({ houseId }: { houseId: string }) {
+export default function ExpensesTab({ houseId, currency }: { houseId: string; currency: string }) {
   const { user } = useAuth()
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [members, setMembers] = useState<Member[]>([])
@@ -123,7 +124,7 @@ export default function ExpensesTab({ houseId }: { houseId: string }) {
                 </div>
                 <div className="text-right">
                   <p className="text-xl font-bold text-gray-800 dark:text-gray-100">
-                    ${expense.amount.toFixed(2)}
+                    {formatCurrency(expense.amount, currency)}
                   </p>
                   {expense.is_recurring && (
                     <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-2 py-1 rounded">
@@ -135,7 +136,7 @@ export default function ExpensesTab({ houseId }: { houseId: string }) {
               <div className="text-sm text-gray-600 dark:text-gray-400">
                 <p>
                   Split between {expense.split_with.length} member{expense.split_with.length !== 1 ? 's' : ''}
-                  {' - '}${(expense.amount / expense.split_with.length).toFixed(2)} each
+                  {' - '}{formatCurrency(expense.amount / expense.split_with.length, currency)} each
                 </p>
               </div>
             </div>

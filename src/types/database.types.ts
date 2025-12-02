@@ -39,6 +39,7 @@ export interface Database {
           address: string
           invite_code: string
           avatar_url: string | null
+          currency: string
           created_at: string
           created_by: string
         }
@@ -48,6 +49,7 @@ export interface Database {
           address: string
           invite_code: string
           avatar_url?: string | null
+          currency?: string
           created_at?: string
           created_by: string
         }
@@ -57,6 +59,7 @@ export interface Database {
           address?: string
           invite_code?: string
           avatar_url?: string | null
+          currency?: string
           created_at?: string
           created_by?: string
         }
@@ -178,6 +181,26 @@ export interface Database {
           category?: string
           created_at?: string
           updated_at?: string
+        }
+      }
+      notes_images: {
+        Row: {
+          id: string
+          note_id: string
+          image_url: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          note_id: string
+          image_url: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          note_id?: string
+          image_url?: string
+          created_at?: string
         }
       }
       member_presence: {

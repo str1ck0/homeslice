@@ -8,6 +8,7 @@ import ExpensesTab from '@/components/ExpensesTab'
 import NotesTab from '@/components/NotesTab'
 import MembersTab from '@/components/MembersTab'
 import { compressImage } from '@/lib/image-utils'
+import { CURRENCIES, CurrencyCode } from '@/lib/currency'
 
 type House = {
   id: string
@@ -15,6 +16,7 @@ type House = {
   address: string
   invite_code: string
   avatar_url: string | null
+  currency: string
 }
 
 type Tab = 'expenses' | 'notes' | 'members'
@@ -55,6 +57,22 @@ export default function HousePage() {
       router.push('/dashboard')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const updateCurrency = async (newCurrency: string) => {
+    try {
+      const { error } = await supabase
+        .from('houses')
+        .update({ currency: newCurrency } as never)
+        .eq('id', houseId)
+
+      if (error) throw error
+
+      loadHouse()
+    } catch (err: unknown) {
+      console.error('Error updating currency:', err)
+      alert('Failed to update currency')
     }
   }
 
@@ -149,7 +167,21 @@ export default function HousePage() {
                 <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">
                   {house.name}
                 </h1>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Click avatar to change</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Click avatar to change</p>
+                  <span className="text-gray-400">•</span>
+                  <select
+                    value={house.currency}
+                    onChange={(e) => updateCurrency(e.target.value)}
+                    className="text-xs bg-transparent border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-gray-700 dark:text-gray-300 cursor-pointer hover:border-blue-500 transition"
+                  >
+                    {Object.entries(CURRENCIES).map(([code, { symbol, name }]) => (
+                      <option key={code} value={code}>
+                        {symbol} {code} - {name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
             <div className="flex gap-4 items-center">
@@ -208,7 +240,7 @@ export default function HousePage() {
           </div>
 
           <div className="p-6">
-            {activeTab === 'expenses' && <ExpensesTab houseId={houseId} />}
+            {activeTab === 'expenses' && <ExpensesTab houseId={houseId} currency={house.currency} />}
             {activeTab === 'notes' && <NotesTab houseId={houseId} />}
             {activeTab === 'members' && <MembersTab houseId={houseId} inviteCode={house.invite_code} />}
           </div>
