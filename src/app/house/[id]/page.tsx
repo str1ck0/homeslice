@@ -7,12 +7,14 @@ import { useRouter, useParams } from 'next/navigation'
 import ExpensesTab from '@/components/ExpensesTab'
 import NotesTab from '@/components/NotesTab'
 import MembersTab from '@/components/MembersTab'
+import { compressImage } from '@/lib/image-utils'
 
 type House = {
   id: string
   name: string
   address: string
   invite_code: string
+  avatar_url: string | null
 }
 
 type Tab = 'expenses' | 'notes' | 'members'
@@ -21,6 +23,7 @@ export default function HousePage() {
   const { user, loading: authLoading, signOut } = useAuth()
   const [house, setHouse] = useState<House | null>(null)
   const [loading, setLoading] = useState(true)
+  const [uploading, setUploading] = useState(false)
   const [activeTab, setActiveTab] = useState<Tab>('expenses')
   const router = useRouter()
   const params = useParams()
@@ -55,6 +58,46 @@ export default function HousePage() {
     }
   }
 
+  const uploadHouseAvatar = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    try {
+      setUploading(true)
+
+      if (!event.target.files || event.target.files.length === 0) {
+        return
+      }
+
+      const file = event.target.files[0]
+      const compressedFile = await compressImage(file)
+
+      const fileExt = 'jpg'
+      const filePath = `house-${houseId}-${Math.random()}.${fileExt}`
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, compressedFile, { upsert: true })
+
+      if (uploadError) throw uploadError
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath)
+
+      const { error: updateError } = await supabase
+        .from('houses')
+        .update({ avatar_url: publicUrl } as never)
+        .eq('id', houseId)
+
+      if (updateError) throw updateError
+
+      loadHouse()
+    } catch (err: unknown) {
+      console.error('Error uploading house avatar:', err)
+      alert('Failed to upload house avatar')
+    } finally {
+      setUploading(false)
+    }
+  }
+
   const handleSignOut = async () => {
     await signOut()
     router.push('/')
@@ -75,16 +118,39 @@ export default function HousePage() {
       <nav className="bg-white dark:bg-gray-800 shadow-md">
         <div className="container mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
-            <div>
+            <div className="flex items-center gap-4">
               <button
                 onClick={() => router.push('/dashboard')}
-                className="text-blue-600 hover:text-blue-700 dark:text-blue-400 text-sm mr-4"
+                className="text-blue-600 hover:text-blue-700 dark:text-blue-400 text-sm"
               >
                 ← Back to Houses
               </button>
-              <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100 inline-block">
-                {house.name}
-              </h1>
+              <label className="cursor-pointer group">
+                {house.avatar_url ? (
+                  <img
+                    src={house.avatar_url}
+                    alt={`${house.name} avatar`}
+                    className="w-12 h-12 rounded-full object-cover ring-2 ring-gray-200 dark:ring-gray-700 group-hover:ring-blue-500 transition"
+                  />
+                ) : (
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white font-bold text-lg ring-2 ring-gray-200 dark:ring-gray-700 group-hover:ring-blue-500 transition">
+                    {house.name.charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={uploadHouseAvatar}
+                  disabled={uploading}
+                  className="hidden"
+                />
+              </label>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">
+                  {house.name}
+                </h1>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Click avatar to change</p>
+              </div>
             </div>
             <div className="flex gap-4 items-center">
               <button

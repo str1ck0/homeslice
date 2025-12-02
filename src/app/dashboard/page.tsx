@@ -9,6 +9,7 @@ type House = {
   id: string
   name: string
   address: string
+  avatar_url: string | null
 }
 
 export default function DashboardPage() {
@@ -38,7 +39,8 @@ export default function DashboardPage() {
           houses (
             id,
             name,
-            address
+            address,
+            avatar_url
           )
         `)
         .eq('user_id', user!.id)
@@ -111,12 +113,25 @@ export default function DashboardPage() {
                   <button
                     key={house.id}
                     onClick={() => router.push(`/house/${house.id}`)}
-                    className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg hover:shadow-xl transition duration-200 text-left"
+                    className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg hover:shadow-xl transition duration-200 text-left flex items-center gap-4"
                   >
-                    <h3 className="text-xl font-semibold mb-2 text-gray-800 dark:text-gray-100">
-                      {house.name}
-                    </h3>
-                    <p className="text-gray-600 dark:text-gray-400">{house.address}</p>
+                    {house.avatar_url ? (
+                      <img
+                        src={house.avatar_url}
+                        alt={`${house.name} avatar`}
+                        className="w-16 h-16 rounded-full object-cover flex-shrink-0"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center text-white font-bold text-2xl flex-shrink-0">
+                        {house.name.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <div>
+                      <h3 className="text-xl font-semibold mb-2 text-gray-800 dark:text-gray-100">
+                        {house.name}
+                      </h3>
+                      <p className="text-gray-600 dark:text-gray-400">{house.address}</p>
+                    </div>
                   </button>
                 ))}
               </div>

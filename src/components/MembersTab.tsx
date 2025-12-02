@@ -175,9 +175,17 @@ export default function MembersTab({ houseId, inviteCode }: { houseId: string; i
             className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow flex items-center justify-between"
           >
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white font-bold text-lg">
-                {member.username.charAt(0).toUpperCase()}
-              </div>
+              {member.avatar_url ? (
+                <img
+                  src={member.avatar_url}
+                  alt={`${member.username}'s avatar`}
+                  className="w-12 h-12 rounded-full object-cover"
+                />
+              ) : (
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white font-bold text-lg">
+                  {member.username.charAt(0).toUpperCase()}
+                </div>
+              )}
               <div>
                 <h3 className="font-semibold text-gray-800 dark:text-gray-100">
                   {member.username}

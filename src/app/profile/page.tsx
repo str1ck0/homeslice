@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import { compressImage } from '@/lib/image-utils'
 
 type Profile = {
   id: string
@@ -61,12 +62,16 @@ export default function ProfilePage() {
       }
 
       const file = event.target.files[0]
-      const fileExt = file.name.split('.').pop()
+
+      // Compress the image before uploading
+      const compressedFile = await compressImage(file)
+
+      const fileExt = 'jpg' // Always use jpg after compression
       const filePath = `${user!.id}-${Math.random()}.${fileExt}`
 
       const { error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(filePath, file, { upsert: true })
+        .upload(filePath, compressedFile, { upsert: true })
 
       if (uploadError) throw uploadError
 
