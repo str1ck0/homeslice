@@ -257,7 +257,10 @@ function CreateHouseModal({ onClose, onSuccess }: { onClose: () => void; onSucce
     setError(null)
 
     try {
+      console.log('User ID:', user?.id)
+      console.log('User authenticated:', !!user)
       const inviteCode = generateInviteCode()
+      console.log('Generated invite code:', inviteCode)
 
       const { data: house, error: houseError } = await supabase
         .from('houses')
@@ -270,7 +273,12 @@ function CreateHouseModal({ onClose, onSuccess }: { onClose: () => void; onSucce
         .select()
         .single()
 
-      if (houseError) throw houseError
+      if (houseError) {
+        console.error('Full house error:', JSON.stringify(houseError, null, 2))
+        throw houseError
+      }
+
+      console.log('House created successfully:', house)
 
       const { error: memberError } = await supabase
         .from('house_members')
