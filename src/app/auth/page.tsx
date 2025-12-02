@@ -48,7 +48,8 @@ export default function AuthPage() {
         router.push('/dashboard')
       }
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'An error occurred'
+      console.error('Auth error:', err)
+      const errorMessage = err instanceof Error ? err.message : JSON.stringify(err)
       setError(errorMessage)
     } finally {
       setLoading(false)
