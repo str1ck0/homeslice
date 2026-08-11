@@ -5,6 +5,11 @@ export const metadata: Metadata = {
   title: 'Homeslice',
   description: 'Split costs and run your house, without the paywall.',
   manifest: '/manifest.webmanifest',
+  // iOS ignores the manifest's icons and looks for apple-touch-icon.
+  icons: {
+    icon: '/icons/icon-192.png',
+    apple: '/icons/icon-192.png',
+  },
   appleWebApp: { capable: true, title: 'Homeslice', statusBarStyle: 'default' },
 }
 
