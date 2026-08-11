@@ -1,6 +1,8 @@
 import Link from 'next/link'
 import { formatCents } from '@/core/money'
 
+export type NavKey = 'home' | 'friends' | 'groups' | 'account'
+
 /** Initials avatar. Used everywhere a person appears. */
 export function Avatar({
   name,
@@ -94,9 +96,10 @@ export function EmptyState({
 }
 
 /** Bottom navigation. Thumb-reachable, and the shape a native shell expects. */
-export function BottomNav({ active }: { active: 'home' | 'groups' | 'account' }) {
+export function BottomNav({ active }: { active: NavKey }) {
   const items = [
     { key: 'home', href: '/dashboard', label: 'Home' },
+    { key: 'friends', href: '/friends', label: 'Friends' },
     { key: 'groups', href: '/groups', label: 'Groups' },
     { key: 'account', href: '/account', label: 'Account' },
   ] as const
@@ -134,7 +137,7 @@ export function PageShell({
   subtitle?: string
   action?: React.ReactNode
   children: React.ReactNode
-  nav?: 'home' | 'groups' | 'account'
+  nav?: NavKey
 }) {
   return (
     <div className="mx-auto flex min-h-dvh max-w-lg flex-col pb-24">

@@ -852,6 +852,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      add_friend: {
+        Args: { p_display_name?: string; p_email: string }
+        Returns: string
+      }
       add_placeholder_member: {
         Args: { p_display_name: string; p_email?: string; p_group_id: string }
         Returns: string

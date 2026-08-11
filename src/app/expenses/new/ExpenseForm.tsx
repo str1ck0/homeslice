@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createExpenseAction } from '@/app/actions'
@@ -34,20 +34,38 @@ const SPLIT_HINTS: Record<SplitType, string> = {
 
 export default function ExpenseForm({
   currentProfileId,
-  groupId,
+  currentProfileName,
+  initialGroupId,
   groups,
-  members,
+  groupMembers,
+  friends,
   defaultCurrency,
   categories,
 }: {
   currentProfileId: string
-  groupId: string | null
+  currentProfileName: string
+  initialGroupId: string | null
   groups: { id: string; name: string; currency: string }[]
-  members: Member[]
+  groupMembers: Member[]
+  friends: Member[]
   defaultCurrency: string
   categories: { id: string; name: string }[]
 }) {
   const router = useRouter()
+  const [groupId, setGroupId] = useState<string | null>(initialGroupId)
+
+  /**
+   * Who can be split with. Inside a group that is its members; outside one it
+   * is your friends. Either way you are always in the list, because an expense
+   * you are not part of is not one you would be adding.
+   */
+  const members: Member[] = useMemo(() => {
+    const base = groupId ? groupMembers : friends
+    const withMe = base.some((m) => m.id === currentProfileId)
+      ? base
+      : [{ id: currentProfileId, name: currentProfileName }, ...base]
+    return withMe
+  }, [groupId, groupMembers, friends, currentProfileId, currentProfileName])
 
   const [description, setDescription] = useState('')
   const [amount, setAmount] = useState('')
@@ -57,6 +75,7 @@ export default function ExpenseForm({
   const [payerId, setPayerId] = useState(currentProfileId)
   const [splitType, setSplitType] = useState<SplitType>('equal')
   const [selected, setSelected] = useState<string[]>(members.map((m) => m.id))
+  const [touchedSelection, setTouchedSelection] = useState(false)
   const [weights, setWeights] = useState<Record<string, string>>({})
   const [images, setImages] = useState<File[]>([])
   const [busy, setBusy] = useState(false)
@@ -88,7 +107,14 @@ export default function ExpenseForm({
     }
   }, [amount, currency, splitType, participants, weights])
 
+  // Switching group swaps the whole cast, so default everyone back on unless
+  // the user has deliberately picked a subset.
+  useEffect(() => {
+    if (!touchedSelection) setSelected(members.map((m) => m.id))
+  }, [members, touchedSelection])
+
   function toggleMember(id: string) {
+    setTouchedSelection(true)
     setSelected((current) =>
       current.includes(id) ? current.filter((value) => value !== id) : [...current, id]
     )
@@ -120,7 +146,7 @@ export default function ExpenseForm({
         splitType,
         categoryId: categoryId || null,
         note: null,
-        payers: [{ profileId: payerId, amountCents: totalCents }],
+        payers: [{ profileId: effectivePayerId, amountCents: totalCents }],
         participants: participants.map((m) => ({
           profileId: m.id,
           weight: parseWeight(weights[m.id], splitType, currency),
@@ -143,6 +169,9 @@ export default function ExpenseForm({
     }
   }
 
+  // The chosen payer may not exist in the new cast after switching group.
+  const effectivePayerId = members.some((m) => m.id === payerId) ? payerId : currentProfileId
+
   const needsWeights = splitType !== 'equal'
 
   return (
@@ -160,6 +189,27 @@ export default function ExpenseForm({
         <h1 className="text-lg font-semibold">New expense</h1>
         <span className="w-14" />
       </div>
+
+      <label className="flex flex-col gap-1.5">
+        <span className="text-sm font-medium">Where does this belong?</span>
+        <select
+          value={groupId ?? ''}
+          onChange={(event) => {
+            setGroupId(event.target.value || null)
+            setTouchedSelection(false)
+            const next = groups.find((g) => g.id === event.target.value)
+            if (next) setCurrency(next.currency)
+          }}
+          className="rounded-xl border border-edge bg-raised px-4 py-3 text-base outline-none focus:border-accent"
+        >
+          <option value="">Just friends — no group</option>
+          {groups.map((group) => (
+            <option key={group.id} value={group.id}>
+              {group.name}
+            </option>
+          ))}
+        </select>
+      </label>
 
       <label className="flex flex-col gap-1.5">
         <span className="text-sm font-medium">What was it?</span>
@@ -231,7 +281,7 @@ export default function ExpenseForm({
       <label className="flex flex-col gap-1.5">
         <span className="text-sm font-medium">Who paid?</span>
         <select
-          value={payerId}
+          value={effectivePayerId}
           onChange={(event) => setPayerId(event.target.value)}
           className="rounded-xl border border-edge bg-raised px-4 py-3 text-base outline-none focus:border-accent"
         >
@@ -271,6 +321,23 @@ export default function ExpenseForm({
             {participants.length} of {members.length}
           </span>
         </span>
+
+        {members.length === 1 && (
+          <div className="rounded-xl border border-dashed border-edge p-4 text-sm text-muted">
+            <p className="font-medium text-ink">There&rsquo;s nobody to split with yet.</p>
+            <p className="mt-1">
+              {groupId
+                ? 'Add someone to this group first.'
+                : 'Add a friend, or pick a group above.'}
+            </p>
+            <Link
+              href={groupId ? `/groups/${groupId}` : '/friends'}
+              className="mt-3 inline-block rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white"
+            >
+              {groupId ? 'Add someone to the group' : 'Add a friend'}
+            </Link>
+          </div>
+        )}
         <ul className="flex flex-col gap-1.5">
           {members.map((member) => {
             const isSelected = selected.includes(member.id)

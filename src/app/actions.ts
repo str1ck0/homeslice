@@ -14,6 +14,7 @@ import { z } from 'zod'
 import { createGroup, joinGroupByCode, addPlaceholderMember } from '@/server/services/groups'
 import { createExpense, deleteExpense, type ExpenseInput } from '@/server/services/expenses'
 import { recordSettlement, type SettlementInput } from '@/server/services/settlements'
+import { addFriend } from '@/server/services/friends'
 
 export interface ActionResult {
   ok: boolean
@@ -107,6 +108,17 @@ export async function recordSettlementAction(input: SettlementInput): Promise<Ac
     revalidatePath('/dashboard')
     if (input.groupId) revalidatePath(`/groups/${input.groupId}`)
     return { ok: true, data: id }
+  } catch (error) {
+    return toResult(error)
+  }
+}
+
+export async function addFriendAction(email: string, displayName?: string): Promise<ActionResult> {
+  try {
+    const profileId = await addFriend(email, displayName)
+    revalidatePath('/friends')
+    revalidatePath('/expenses/new')
+    return { ok: true, data: profileId }
   } catch (error) {
     return toResult(error)
   }
