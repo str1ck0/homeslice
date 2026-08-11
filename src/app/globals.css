@@ -3,25 +3,47 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* A green-leaning neutral: warm enough to feel domestic, cool enough to
+     keep long lists of numbers calm. */
+  --surface: 250 250 249;
+  --surface-raised: 255 255 255;
+  --border: 231 229 228;
+  --text: 28 25 23;
+  --text-muted: 120 113 108;
+  --accent: 13 148 136;
+  --positive: 15 118 110;
+  --negative: 190 18 60;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --surface: 12 14 13;
+    --surface-raised: 24 27 26;
+    --border: 48 52 50;
+    --text: 245 245 244;
+    --text-muted: 160 155 150;
+    --accent: 45 212 191;
+    --positive: 52 211 153;
+    --negative: 251 113 133;
   }
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  background: rgb(var(--surface));
+  color: rgb(var(--text));
+  -webkit-font-smoothing: antialiased;
+  /* Keeps content clear of the iOS home indicator once installed as a PWA. */
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 @layer utilities {
-  .text-balance {
-    text-wrap: balance;
+  .tabular {
+    font-variant-numeric: tabular-nums;
   }
+}
+
+/* Amounts should never wrap mid-number in a list. */
+.amount {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }

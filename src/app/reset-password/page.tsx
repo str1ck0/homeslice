@@ -1,136 +1,107 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { supabase } from '@/lib/supabase'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 
 export default function ResetPasswordPage() {
-  const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [message, setMessage] = useState<string | null>(null)
   const router = useRouter()
+  const supabase = createClient()
+
+  const [ready, setReady] = useState(false)
+  const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    // Check if user has a valid session from the reset link
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) {
-        setError('Invalid or expired reset link. Please request a new one.')
-      }
+    // Supabase fires PASSWORD_RECOVERY once it has consumed the link's token.
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') setReady(true)
     })
-  }, [])
 
-  const handleResetPassword = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) setReady(true)
+    })
+
+    return () => subscription.unsubscribe()
+  }, [supabase])
+
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault()
     setError(null)
-    setMessage(null)
 
-    if (password !== confirmPassword) {
-      setError('Passwords do not match')
-      setLoading(false)
+    if (password !== confirm) {
+      setError('Those two passwords do not match')
       return
     }
 
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters')
-      setLoading(false)
+    setBusy(true)
+    const { error } = await supabase.auth.updateUser({ password })
+    setBusy(false)
+
+    if (error) {
+      setError(error.message)
       return
     }
 
-    try {
-      const { error } = await supabase.auth.updateUser({
-        password: password,
-      })
-
-      if (error) throw error
-
-      setMessage('Password updated successfully! Redirecting to login...')
-      setTimeout(() => {
-        router.push('/auth')
-      }, 2000)
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to reset password'
-      setError(errorMessage)
-    } finally {
-      setLoading(false)
-    }
+    router.push('/dashboard')
+    router.refresh()
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center px-4">
-      <div className="max-w-md w-full bg-white dark:bg-gray-800 rounded-lg shadow-xl p-8">
-        <h1 className="text-3xl font-bold text-center mb-2 bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-          Reset Password
-        </h1>
-        <p className="text-center text-gray-600 dark:text-gray-400 mb-8">
-          Enter your new password
-        </p>
+    <div className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center px-6 py-12">
+      <h1 className="text-2xl font-bold tracking-tight">Choose a new password</h1>
 
-        <form onSubmit={handleResetPassword} className="space-y-4">
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              New Password
-            </label>
+      {!ready ? (
+        <p className="mt-4 text-sm text-muted">
+          Open this page from the reset link in your email.
+        </p>
+      ) : (
+        <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium">New password</span>
             <input
-              id="password"
               type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(event) => setPassword(event.target.value)}
               required
-              minLength={6}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
-              placeholder="Enter new password"
+              minLength={8}
+              autoComplete="new-password"
+              className="rounded-xl border border-edge bg-raised px-4 py-3 text-base outline-none focus:border-accent"
             />
-          </div>
+          </label>
 
-          <div>
-            <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Confirm Password
-            </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium">Confirm it</span>
             <input
-              id="confirm-password"
               type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
+              value={confirm}
+              onChange={(event) => setConfirm(event.target.value)}
               required
-              minLength={6}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
-              placeholder="Confirm new password"
+              minLength={8}
+              autoComplete="new-password"
+              className="rounded-xl border border-edge bg-raised px-4 py-3 text-base outline-none focus:border-accent"
             />
-          </div>
+          </label>
 
           {error && (
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-2 rounded-lg text-sm">
+            <p role="alert" className="rounded-xl bg-negative/10 px-4 py-3 text-sm text-negative">
               {error}
-            </div>
-          )}
-
-          {message && (
-            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-600 dark:text-green-400 px-4 py-2 rounded-lg text-sm">
-              {message}
-            </div>
+            </p>
           )}
 
           <button
             type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg transition duration-200"
+            disabled={busy}
+            className="mt-2 rounded-xl bg-accent px-4 py-3.5 font-semibold text-white disabled:opacity-50"
           >
-            {loading ? 'Updating...' : 'Update Password'}
+            {busy ? 'Saving…' : 'Save password'}
           </button>
         </form>
-
-        <div className="mt-6 text-center">
-          <button
-            onClick={() => router.push('/auth')}
-            className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 text-sm font-medium"
-          >
-            Back to Login
-          </button>
-        </div>
-      </div>
+      )}
     </div>
   )
 }
