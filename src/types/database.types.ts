@@ -852,13 +852,59 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      add_placeholder_member: {
+        Args: { p_display_name: string; p_email?: string; p_group_id: string }
+        Returns: string
+      }
       can_access_expense: { Args: { target_expense: string }; Returns: boolean }
       can_view_profile: { Args: { target_profile: string }; Returns: boolean }
+      create_expense: {
+        Args: {
+          p_amount_cents: number
+          p_category_id: string
+          p_currency: string
+          p_description: string
+          p_expense_date: string
+          p_group_id: string
+          p_note: string
+          p_participants: Json
+          p_split_type: string
+        }
+        Returns: string
+      }
+      create_group: {
+        Args: {
+          p_address?: string
+          p_currency?: string
+          p_icon?: string
+          p_label?: string
+          p_name: string
+        }
+        Returns: string
+      }
       current_profile_id: { Args: never; Returns: string }
       generate_invite_code: { Args: never; Returns: string }
+      is_expense_participant: {
+        Args: { target_expense: string }
+        Returns: boolean
+      }
       is_group_admin: { Args: { target_group: string }; Returns: boolean }
       join_group_by_code: { Args: { code: string }; Returns: string }
       my_group_ids: { Args: never; Returns: string[] }
+      update_expense: {
+        Args: {
+          p_amount_cents: number
+          p_category_id: string
+          p_currency: string
+          p_description: string
+          p_expense_date: string
+          p_expense_id: string
+          p_note: string
+          p_participants: Json
+          p_split_type: string
+        }
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never

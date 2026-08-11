@@ -1,19 +1,20 @@
-import type { Config } from "tailwindcss";
+import type { Config } from 'tailwindcss'
 
-const config: Config = {
-  content: [
-    "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
-    "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
-    "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
-  ],
+export default {
+  content: ['./src/**/*.{ts,tsx}'],
   theme: {
     extend: {
       colors: {
-        background: "var(--background)",
-        foreground: "var(--foreground)",
+        surface: 'rgb(var(--surface) / <alpha-value>)',
+        raised: 'rgb(var(--surface-raised) / <alpha-value>)',
+        edge: 'rgb(var(--border) / <alpha-value>)',
+        ink: 'rgb(var(--text) / <alpha-value>)',
+        muted: 'rgb(var(--text-muted) / <alpha-value>)',
+        accent: 'rgb(var(--accent) / <alpha-value>)',
+        positive: 'rgb(var(--positive) / <alpha-value>)',
+        negative: 'rgb(var(--negative) / <alpha-value>)',
       },
     },
   },
   plugins: [],
-};
-export default config;
+} satisfies Config
