@@ -12,7 +12,12 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
 import { createGroup, joinGroupByCode, addPlaceholderMember } from '@/server/services/groups'
-import { createExpense, deleteExpense, type ExpenseInput } from '@/server/services/expenses'
+import {
+  createExpense,
+  deleteExpense,
+  updateExpense,
+  type ExpenseInput,
+} from '@/server/services/expenses'
 import { recordSettlement, type SettlementInput } from '@/server/services/settlements'
 import { addFriend, setUsername } from '@/server/services/friends'
 
@@ -81,6 +86,21 @@ export async function createExpenseAction(input: ExpenseInput): Promise<ActionRe
   try {
     const expenseId = await createExpense(input)
     revalidatePath('/dashboard')
+    if (input.groupId) revalidatePath(`/groups/${input.groupId}`)
+    return { ok: true, data: expenseId }
+  } catch (error) {
+    return toResult(error)
+  }
+}
+
+export async function updateExpenseAction(
+  expenseId: string,
+  input: ExpenseInput
+): Promise<ActionResult> {
+  try {
+    await updateExpense(expenseId, input)
+    revalidatePath('/dashboard')
+    revalidatePath(`/expenses/${expenseId}`)
     if (input.groupId) revalidatePath(`/groups/${input.groupId}`)
     return { ok: true, data: expenseId }
   } catch (error) {

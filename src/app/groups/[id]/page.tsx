@@ -2,11 +2,10 @@ import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { getCurrentProfile } from '@/server/services/session'
 import { getGroup, getGroupMembers } from '@/server/services/groups'
-import { getBalances } from '@/server/services/balances'
+import { debtLinesInGroup, getOverview, sumLines } from '@/server/services/overview'
 import { listExpenses } from '@/server/services/expenses'
-import { Amount, Avatar, Card, EmptyState } from '@/components/ui'
+import { Avatar, Card, CurrencyTotals, DebtBreakdown, EmptyState, ExpenseRow } from '@/components/ui'
 import AddPersonButton from './AddPersonButton'
-import { formatCents } from '@/core/money'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,19 +17,16 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
   const group = await getGroup(id).catch(() => null)
   if (!group) notFound()
 
-  const [members, balances, expenses] = await Promise.all([
+  const [members, overview, expenses] = await Promise.all([
     getGroupMembers(id),
-    getBalances(id, profile.id),
+    getOverview(profile.id),
     listExpenses(id, profile.id),
   ])
 
-  const nameFor = new Map(members.map((m) => [m.profileId, m.displayName]))
-  const yourEntries = [...balances.yours.entries()]
-
-  // Who you specifically owe or are owed, rather than a group total.
-  const yourDebts = balances.pairwise.filter(
-    (edge) => edge.fromProfileId === profile.id || edge.toProfileId === profile.id
-  )
+  // Scoped to this group, so a debt from elsewhere never leaks in here.
+  const lines = debtLinesInGroup(overview, profile.id, id)
+  const totals = sumLines(lines)
+  const owed = [...totals.values()].some((cents) => cents > 0)
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-lg flex-col pb-28">
@@ -51,56 +47,25 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
       </header>
 
       <main className="flex flex-1 flex-col gap-6 px-5">
-        <Card className="p-5">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted">
-            Your balance
-          </h2>
-          {yourEntries.length === 0 ? (
+        {totals.size === 0 ? (
+          <Card className="p-5">
             <p className="text-sm text-muted">You&rsquo;re all square in this group.</p>
-          ) : (
-            <>
-              <ul className="flex flex-col gap-2">
-                {yourEntries.map(([currency, cents]) => (
-                  <li key={currency} className="flex items-baseline justify-between gap-4">
-                    <span className="text-sm text-muted">
-                      {cents > 0 ? "You're owed" : 'You owe'}
-                    </span>
-                    <Amount cents={cents} currency={currency} className="text-2xl font-bold" />
-                  </li>
-                ))}
-              </ul>
-
-              {yourDebts.length > 0 && (
-                <ul className="mt-4 flex flex-col gap-1.5 border-t border-edge pt-4">
-                  {yourDebts.map((edge, index) => {
-                    const youOwe = edge.fromProfileId === profile.id
-                    const other = youOwe ? edge.toProfileId : edge.fromProfileId
-                    return (
-                      <li key={index} className="flex items-baseline justify-between gap-3 text-sm">
-                        <span className="text-muted">
-                          {youOwe ? 'You owe' : `${nameFor.get(other) ?? 'Someone'} owes you`}
-                          {youOwe && ` ${nameFor.get(other) ?? 'someone'}`}
-                        </span>
-                        <span
-                          className={`amount font-semibold ${youOwe ? 'text-negative' : 'text-positive'}`}
-                        >
-                          {formatCents(edge.amountCents, edge.currency)}
-                        </span>
-                      </li>
-                    )
-                  })}
-                </ul>
-              )}
-
-              <Link
-                href={`/groups/${id}/settle`}
-                className="mt-4 block rounded-xl border border-accent px-4 py-2.5 text-center text-sm font-semibold text-accent"
-              >
-                Settle up
-              </Link>
-            </>
-          )}
-        </Card>
+          </Card>
+        ) : (
+          <div>
+            <p className="text-lg font-semibold text-balance">
+              In this group, {owed ? "you're owed" : 'you owe'}{' '}
+              <CurrencyTotals totals={totals} />
+            </p>
+            <DebtBreakdown lines={lines} className="mt-3" />
+            <Link
+              href={`/groups/${id}/settle`}
+              className="mt-4 block rounded-xl border border-accent px-4 py-2.5 text-center text-sm font-semibold text-accent"
+            >
+              Settle up
+            </Link>
+          </div>
+        )}
 
         <section>
           <div className="mb-3 flex items-center justify-between">
@@ -130,46 +95,11 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
             </Card>
           ) : (
             <ul className="flex flex-col gap-2">
-              {expenses.map((expense) => {
-                const yourNet = expense.yourPaidCents - expense.yourShareCents
-                return (
-                  <li key={expense.id}>
-                    <Link
-                      href={`/expenses/${expense.id}`}
-                      className="flex items-center gap-3 rounded-2xl border border-edge bg-raised p-4 transition-colors hover:border-accent/50"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate font-semibold">
-                          {expense.description}
-                          {expense.imageCount > 0 && (
-                            <span
-                              className="ml-1.5 text-muted"
-                              title={`${expense.imageCount} photo${expense.imageCount === 1 ? '' : 's'}`}
-                            >
-                              &#128247;
-                            </span>
-                          )}
-                        </p>
-                        <p className="truncate text-sm text-muted">
-                          {expense.paidByNames.length > 0
-                            ? `${expense.paidByNames.join(' & ')} paid ${formatCents(expense.amountCents, expense.currency)}`
-                            : formatCents(expense.amountCents, expense.currency)}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-xs text-muted">
-                          {yourNet === 0 ? 'not involved' : yourNet > 0 ? 'you lent' : 'you owe'}
-                        </p>
-                        <Amount
-                          cents={yourNet}
-                          currency={expense.currency}
-                          className="font-semibold"
-                        />
-                      </div>
-                    </Link>
-                  </li>
-                )
-              })}
+              {expenses.map((expense) => (
+                <li key={expense.id}>
+                  <ExpenseRow expense={expense} />
+                </li>
+              ))}
             </ul>
           )}
         </section>

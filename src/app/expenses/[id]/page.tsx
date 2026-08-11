@@ -132,7 +132,17 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
 
       <p className="text-xs text-muted">Added by {expense.createdByName}</p>
 
-      {canEdit && <DeleteExpenseButton expenseId={expense.id} groupId={expense.groupId} />}
+      {canEdit && (
+        <>
+          <Link
+            href={`/expenses/${expense.id}/edit`}
+            className="mt-2 block rounded-xl border border-accent py-3 text-center text-sm font-semibold text-accent"
+          >
+            Edit expense
+          </Link>
+          <DeleteExpenseButton expenseId={expense.id} groupId={expense.groupId} />
+        </>
+      )}
     </div>
   )
 }

@@ -301,3 +301,78 @@ export async function getExpense(expenseId: string): Promise<ExpenseDetail | nul
     imageIds: images.sort((a, b) => a.sort_order - b.sort_order).map((image) => image.id),
   }
 }
+
+/**
+ * Expenses you and one other person both appear in — across every group and
+ * every one-off split.
+ *
+ * Without this a non-group expense has nowhere to live: the dashboard lists
+ * groups, and an expense between two friends belongs to none of them, so it
+ * was invisible the moment it was created.
+ */
+export async function listExpensesWithPerson(
+  profileId: string,
+  otherProfileId: string
+): Promise<ExpenseListItem[]> {
+  const supabase = await createClient()
+
+  // Expense ids the other person is part of; RLS already limits this to rows
+  // the caller can see, so it cannot be used to probe someone else's history.
+  const { data: theirRows, error: theirError } = await supabase
+    .from('expense_participants')
+    .select('expense_id')
+    .eq('profile_id', otherProfileId)
+
+  if (theirError) throw new Error(theirError.message)
+
+  const ids = (theirRows ?? []).map((row) => row.expense_id)
+  if (ids.length === 0) return []
+
+  const { data, error } = await supabase
+    .from('expenses')
+    .select(
+      `id, description, amount_cents, currency, expense_date,
+       categories(name),
+       expense_participants(profile_id, paid_cents, owed_cents, profiles(display_name)),
+       expense_images(count)`
+    )
+    .in('id', ids)
+    .is('deleted_at', null)
+    .order('expense_date', { ascending: false })
+    .order('created_at', { ascending: false })
+
+  if (error) throw new Error(error.message)
+
+  return (data ?? [])
+    .map((expense) => {
+      const participants = (expense.expense_participants ?? []) as unknown as {
+        profile_id: string
+        paid_cents: number
+        owed_cents: number
+        profiles: { display_name: string } | null
+      }[]
+
+      const mine = participants.find((p) => p.profile_id === profileId)
+
+      return {
+        id: expense.id,
+        description: expense.description,
+        amountCents: expense.amount_cents,
+        currency: expense.currency,
+        expenseDate: expense.expense_date,
+        categoryName: (expense.categories as unknown as { name: string } | null)?.name ?? null,
+        paidByNames: participants
+          .filter((p) => p.paid_cents > 0)
+          .map((p) => p.profiles?.display_name ?? 'Someone'),
+        yourShareCents: mine?.owed_cents ?? 0,
+        yourPaidCents: mine?.paid_cents ?? 0,
+        imageCount:
+          (expense.expense_images as unknown as { count: number }[] | null)?.[0]?.count ?? 0,
+        // Only expenses you are actually in — being able to see a group
+        // expense does not mean it is between the two of you.
+        _mine: Boolean(mine),
+      }
+    })
+    .filter((expense) => expense._mine)
+    .map(({ _mine, ...expense }) => expense)
+}

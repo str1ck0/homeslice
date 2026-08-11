@@ -1,10 +1,11 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getCurrentProfile } from '@/server/services/session'
-import { getOverallBalance } from '@/server/services/balances'
+import { getOverview } from '@/server/services/overview'
+import { listFriends } from '@/server/services/friends'
 import { listMyGroups } from '@/server/services/groups'
-import { Amount, Avatar, Card, EmptyState, PageShell } from '@/components/ui'
-import { formatCents } from '@/core/money'
+import { createClient } from '@/lib/supabase/server'
+import { Card, CurrencyTotals, EmptyState, ExpenseRow, PageShell } from '@/components/ui'
 
 // Balances change on every expense, so this page is always rendered fresh.
 export const dynamic = 'force-dynamic'
@@ -13,17 +14,56 @@ export default async function DashboardPage() {
   const profile = await getCurrentProfile()
   if (!profile) redirect('/auth')
 
-  const [balances, groups] = await Promise.all([
-    getOverallBalance(profile.id),
+  const supabase = await createClient()
+  const [overview, groups, friends, { data: recentRows }] = await Promise.all([
+    getOverview(profile.id),
     listMyGroups(),
+    listFriends(),
+    // Everything recent, group or not. The dashboard used to list only groups,
+    // which left a one-off split invisible the moment it was created.
+    supabase
+      .from('expenses')
+      .select(
+        `id, description, amount_cents, currency, expense_date,
+         expense_participants(profile_id, paid_cents, owed_cents, profiles(display_name)),
+         expense_images(count)`
+      )
+      .is('deleted_at', null)
+      .order('expense_date', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(10),
   ])
 
-  const entries = [...balances.entries()]
+  const recent = (recentRows ?? []).map((expense) => {
+    const participants = (expense.expense_participants ?? []) as unknown as {
+      profile_id: string
+      paid_cents: number
+      owed_cents: number
+      profiles: { display_name: string } | null
+    }[]
+    const mine = participants.find((p) => p.profile_id === profile.id)
+    return {
+      id: expense.id,
+      description: expense.description,
+      amountCents: expense.amount_cents,
+      currency: expense.currency,
+      expenseDate: expense.expense_date,
+      paidByNames: participants
+        .filter((p) => p.paid_cents > 0)
+        .map((p) => p.profiles?.display_name ?? 'Someone'),
+      yourShareCents: mine?.owed_cents ?? 0,
+      yourPaidCents: mine?.paid_cents ?? 0,
+      imageCount:
+        (expense.expense_images as unknown as { count: number }[] | null)?.[0]?.count ?? 0,
+    }
+  })
+
+  const owed = [...overview.overall.values()].some((cents) => cents > 0)
+  const isNew = groups.length === 0 && friends.length === 0
 
   return (
     <PageShell
       title={`Hi ${profile.display_name.split(' ')[0]}`}
-      subtitle={entries.length === 0 ? "You're all square" : 'Your overall position'}
       nav="home"
       action={
         <Link
@@ -34,68 +74,69 @@ export default async function DashboardPage() {
         </Link>
       }
     >
-      <Card className="mb-6 p-5">
-        {entries.length === 0 ? (
+      {overview.overall.size === 0 ? (
+        <Card className="mb-6 p-5">
           <p className="text-sm text-muted">
-            Nothing outstanding. Add an expense and balances will appear here.
+            {isNew
+              ? 'Add a friend or create a group, then split something.'
+              : "You're all square. Nothing outstanding."}
           </p>
-        ) : (
-          <ul className="flex flex-col gap-3">
-            {entries.map(([currency, cents]) => (
-              <li key={currency} className="flex items-baseline justify-between gap-4">
-                <span className="text-sm text-muted">
-                  {cents > 0 ? "You're owed" : 'You owe'}
-                  {entries.length > 1 && ` · ${currency}`}
-                </span>
-                <Amount cents={cents} currency={currency} className="text-2xl font-bold" />
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
-
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-muted">Groups</h2>
-        <Link href="/groups/new" className="text-sm font-medium text-accent">
-          New group
+        </Card>
+      ) : (
+        <Link
+          href="/friends"
+          className="mb-6 block rounded-2xl border border-edge bg-raised p-5 transition-colors hover:border-accent/50"
+        >
+          <p className="text-sm text-muted">Overall, {owed ? "you're owed" : 'you owe'}</p>
+          <p className="mt-1 text-3xl font-bold">
+            <CurrencyTotals totals={overview.overall} />
+          </p>
+          <p className="mt-2 text-sm text-accent">See who &rarr;</p>
         </Link>
-      </div>
+      )}
 
-      {groups.length === 0 ? (
+      {isNew ? (
         <Card>
           <EmptyState
-            title="No groups yet"
-            body="Groups are optional — you can split with a friend without one. But a house, a trip or a flat is easier to track together."
+            title="Nothing here yet"
+            body="Split with a friend without any setup, or make a group for a house, a flat or a trip."
             action={
-              <Link
-                href="/groups/new"
-                className="mt-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-white"
-              >
-                Create a group
-              </Link>
+              <div className="mt-2 flex gap-2">
+                <Link
+                  href="/friends"
+                  className="rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-white"
+                >
+                  Add a friend
+                </Link>
+                <Link
+                  href="/groups/new"
+                  className="rounded-xl border border-edge px-5 py-2.5 text-sm font-semibold"
+                >
+                  New group
+                </Link>
+              </div>
             }
           />
         </Card>
       ) : (
-        <ul className="flex flex-col gap-2">
-          {groups.map((group) => (
-            <li key={group.id}>
-              <Link
-                href={`/groups/${group.id}`}
-                className="flex items-center gap-3 rounded-2xl border border-edge bg-raised p-4 transition-colors hover:border-accent/50"
-              >
-                <Avatar name={group.name} url={group.avatarUrl} size={44} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold">{group.name}</p>
-                  <p className="truncate text-sm text-muted">
-                    {group.label ? `${group.label} · ` : ''}
-                    {group.memberCount} {group.memberCount === 1 ? 'member' : 'members'}
-                  </p>
-                </div>
-              </Link>
-            </li>
-          ))}
-        </ul>
+        <section>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted">
+            Recent
+          </h2>
+          {recent.length === 0 ? (
+            <Card className="p-5">
+              <p className="text-sm text-muted">No expenses yet.</p>
+            </Card>
+          ) : (
+            <ul className="flex flex-col gap-2">
+              {recent.map((expense) => (
+                <li key={expense.id}>
+                  <ExpenseRow expense={expense} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       )}
     </PageShell>
   )

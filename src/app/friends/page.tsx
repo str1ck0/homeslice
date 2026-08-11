@@ -2,11 +2,15 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { getCurrentProfile } from '@/server/services/session'
 import { listFriends } from '@/server/services/friends'
-import { getOverallBalance } from '@/server/services/balances'
-import { createClient } from '@/lib/supabase/server'
-import { calculateNetBalances, calculatePairwiseDebts } from '@/core/balances'
-import { Avatar, Card, EmptyState, PageShell } from '@/components/ui'
-import { formatCents } from '@/core/money'
+import { debtLinesWith, getOverview, totalWith } from '@/server/services/overview'
+import {
+  Avatar,
+  Card,
+  CurrencyTotals,
+  DebtBreakdown,
+  EmptyState,
+  PageShell,
+} from '@/components/ui'
 import AddFriendButton from './AddFriendButton'
 
 export const dynamic = 'force-dynamic'
@@ -15,47 +19,37 @@ export default async function FriendsPage() {
   const profile = await getCurrentProfile()
   if (!profile) redirect('/auth')
 
-  const supabase = await createClient()
-  const [friends, { data: expenseRows }, { data: settlementRows }] = await Promise.all([
-    listFriends(),
-    supabase
-      .from('expenses')
-      .select('id, currency, expense_participants(profile_id, paid_cents, owed_cents)')
-      .is('deleted_at', null),
-    supabase
-      .from('settlements')
-      .select('id, currency, from_profile, to_profile, amount_cents')
-      .is('deleted_at', null),
-  ])
+  const [friends, overview] = await Promise.all([listFriends(), getOverview(profile.id)])
 
-  // Per-person totals across everything, so a friend row shows what you
-  // actually owe them rather than only a group figure.
-  const edges = calculatePairwiseDebts(
-    (expenseRows ?? []).map((row) => ({
-      id: row.id,
-      currency: row.currency,
-      participants: (row.expense_participants ?? []).map((p) => ({
-        profileId: p.profile_id,
-        paidCents: p.paid_cents,
-        owedCents: p.owed_cents,
-      })),
-    })),
-    (settlementRows ?? []).map((row) => ({
-      id: row.id,
-      currency: row.currency,
-      fromProfileId: row.from_profile,
-      toProfileId: row.to_profile,
-      amountCents: row.amount_cents,
-    }))
-  )
+  const rows = friends.map((friend) => ({
+    friend,
+    lines: debtLinesWith(overview, profile.id, friend.profileId),
+    totals: totalWith(overview, profile.id, friend.profileId),
+  }))
+
+  // Outstanding first — a settled-up friend is not why you opened this.
+  rows.sort((a, b) => {
+    const aOpen = a.totals.size > 0 ? 0 : 1
+    const bOpen = b.totals.size > 0 ? 0 : 1
+    return aOpen - bOpen || a.friend.displayName.localeCompare(b.friend.displayName)
+  })
+
+  const owed = [...overview.overall.values()].some((cents) => cents > 0)
 
   return (
     <PageShell
       title="Friends"
-      subtitle="Split with anyone — no group needed"
+      subtitle={overview.overall.size === 0 ? "You're all square" : undefined}
       nav="friends"
       action={<AddFriendButton compact />}
     >
+      {overview.overall.size > 0 && (
+        <p className="mb-5 text-lg font-semibold text-balance">
+          Overall, {owed ? "you're owed" : 'you owe'}{' '}
+          <CurrencyTotals totals={overview.overall} />
+        </p>
+      )}
+
       {friends.length === 0 ? (
         <Card>
           <EmptyState
@@ -66,54 +60,39 @@ export default async function FriendsPage() {
         </Card>
       ) : (
         <ul className="flex flex-col gap-2">
-          {friends.map((friend) => {
-            const between = edges.filter(
-              (edge) =>
-                (edge.fromProfileId === profile.id && edge.toProfileId === friend.profileId) ||
-                (edge.fromProfileId === friend.profileId && edge.toProfileId === profile.id)
-            )
-
-            return (
-              <li key={friend.profileId}>
-                <Card className="flex items-center gap-3 p-4">
+          {rows.map(({ friend, lines, totals }) => (
+            <li key={friend.profileId}>
+              <Link
+                href={`/friends/${friend.profileId}`}
+                className="block rounded-2xl border border-edge bg-raised p-4 transition-colors hover:border-accent/50"
+              >
+                <div className="flex items-center gap-3">
                   <Avatar name={friend.displayName} url={friend.avatarUrl} size={44} />
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-semibold">{friend.displayName}</p>
-                    <p className="truncate text-sm text-muted">
-                      {friend.isPlaceholder
-                        ? "Hasn't signed up yet"
-                        : friend.username
-                          ? `@${friend.username}`
-                          : friend.email}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    {between.length === 0 ? (
-                      <span className="text-sm text-muted">square</span>
-                    ) : (
-                      between.map((edge, index) => {
-                        const youOwe = edge.fromProfileId === profile.id
-                        return (
-                          <div key={index}>
-                            <p className="text-xs text-muted">
-                              {youOwe ? 'you owe' : 'owes you'}
-                            </p>
-                            <p
-                              className={`amount font-semibold ${
-                                youOwe ? 'text-negative' : 'text-positive'
-                              }`}
-                            >
-                              {formatCents(edge.amountCents, edge.currency)}
-                            </p>
-                          </div>
-                        )
-                      })
+                    {friend.isPlaceholder && (
+                      <p className="truncate text-sm text-muted">Hasn&rsquo;t signed up yet</p>
                     )}
                   </div>
-                </Card>
-              </li>
-            )
-          })}
+                  <div className="text-right">
+                    {totals.size === 0 ? (
+                      <span className="text-sm text-muted">settled up</span>
+                    ) : (
+                      <>
+                        <p className="text-xs text-muted">
+                          {[...totals.values()][0] > 0 ? 'owes you' : 'you owe'}
+                        </p>
+                        <CurrencyTotals totals={totals} className="amount font-semibold" />
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Only worth breaking down when there is more than one source. */}
+                {lines.length > 1 && <DebtBreakdown lines={lines} className="mt-3" />}
+              </Link>
+            </li>
+          ))}
         </ul>
       )}
 
@@ -122,7 +101,7 @@ export default async function FriendsPage() {
           href="/expenses/new"
           className="mt-4 block rounded-xl bg-accent px-4 py-3.5 text-center font-semibold text-white"
         >
-          Split something
+          Add expense
         </Link>
       )}
     </PageShell>

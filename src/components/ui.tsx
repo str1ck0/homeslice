@@ -153,3 +153,141 @@ export function PageShell({
     </div>
   )
 }
+
+/**
+ * A multi-currency total, written the way Splitwise writes it:
+ * "you owe ZAR 2,823.16 + EUR 356.98".
+ *
+ * Currencies are never converted, so several can be outstanding at once and
+ * joining them with "+" is more honest than picking one to display.
+ */
+export function CurrencyTotals({
+  totals,
+  className = '',
+}: {
+  totals: Map<string, number>
+  className?: string
+}) {
+  const entries = [...totals.entries()]
+  if (entries.length === 0) return null
+
+  return (
+    <span className={className}>
+      {entries.map(([currency, cents], index) => (
+        <span key={currency}>
+          {index > 0 && <span className="text-muted"> + </span>}
+          <span className={cents > 0 ? 'text-positive' : 'text-negative'}>
+            {formatCents(Math.abs(cents), currency)}
+          </span>
+        </span>
+      ))}
+    </span>
+  )
+}
+
+/**
+ * "You owe Sam R878.91 in Cape Town" — one line per group and currency.
+ *
+ * The breakdown matters because the total alone hides where a debt came from,
+ * and people reason about "the house" separately from "last night's dinner".
+ */
+export function DebtBreakdown({
+  lines,
+  className = '',
+}: {
+  lines: {
+    groupName: string | null
+    currency: string
+    amountCents: number
+    otherName: string
+  }[]
+  className?: string
+}) {
+  if (lines.length === 0) return null
+
+  return (
+    <ul className={`flex flex-col gap-1 border-l border-edge pl-3 ${className}`}>
+      {lines.map((line, index) => {
+        const youOwe = line.amountCents < 0
+        return (
+          <li key={index} className="text-sm text-muted">
+            {youOwe ? 'You owe' : `${line.otherName} owes you`}{' '}
+            {youOwe && <span>{line.otherName} </span>}
+            <span className={`amount font-medium ${youOwe ? 'text-negative' : 'text-positive'}`}>
+              {formatCents(Math.abs(line.amountCents), line.currency)}
+            </span>{' '}
+            {line.groupName ? `in ${line.groupName}` : 'in non-group expenses'}
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
+/**
+ * One expense in a list, laid out the way Splitwise does it: the date on the
+ * left, who paid underneath the description, and your position on the right.
+ *
+ * "you lent" / "you borrowed" reads better than a bare signed number — it says
+ * what happened rather than making you infer it from a colour.
+ */
+export function ExpenseRow({
+  expense,
+}: {
+  expense: {
+    id: string
+    description: string
+    amountCents: number
+    currency: string
+    expenseDate: string
+    paidByNames: string[]
+    yourShareCents: number
+    yourPaidCents: number
+    imageCount: number
+  }
+}) {
+  const yourNet = expense.yourPaidCents - expense.yourShareCents
+  const date = new Date(`${expense.expenseDate}T00:00:00`)
+
+  return (
+    <Link
+      href={`/expenses/${expense.id}`}
+      className="flex items-center gap-3 rounded-2xl border border-edge bg-raised p-4 transition-colors hover:border-accent/50"
+    >
+      <div className="w-10 shrink-0 text-center">
+        <p className="text-xs uppercase text-muted">
+          {date.toLocaleDateString(undefined, { month: 'short' })}
+        </p>
+        <p className="text-lg font-semibold leading-tight">{date.getDate()}</p>
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-semibold">
+          {expense.description}
+          {expense.imageCount > 0 && (
+            <span
+              className="ml-1.5 text-muted"
+              title={`${expense.imageCount} photo${expense.imageCount === 1 ? '' : 's'}`}
+            >
+              &#128247;
+            </span>
+          )}
+        </p>
+        <p className="truncate text-sm text-muted">
+          {expense.paidByNames.length > 0
+            ? `${expense.paidByNames.join(' & ')} paid ${formatCents(expense.amountCents, expense.currency)}`
+            : formatCents(expense.amountCents, expense.currency)}
+        </p>
+      </div>
+
+      <div className="shrink-0 text-right">
+        <p className="text-xs text-muted">
+          {yourNet === 0 ? 'not involved' : yourNet > 0 ? 'you lent' : 'you borrowed'}
+        </p>
+        {yourNet !== 0 && (
+          <Amount cents={yourNet} currency={expense.currency} className="font-semibold" />
+        )}
+      </div>
+    </Link>
+  )
+}

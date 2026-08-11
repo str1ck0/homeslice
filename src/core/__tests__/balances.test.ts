@@ -5,7 +5,9 @@ import {
   balanceForProfile,
   calculateNetBalances,
   calculatePairwiseDebts,
+  calculateScopedPairwiseDebts,
   debtsBetween,
+  netBetween,
 } from '../balances'
 import { simplifyDebts } from '../simplify'
 import { splitExpense } from '../split'
@@ -226,5 +228,103 @@ describe('simplifyDebts', () => {
     const plan = simplifyDebts(balances)
     expect(plan).toHaveLength(2)
     expect(new Set(plan.map((e) => e.currency))).toEqual(new Set(['ZAR', 'EUR']))
+  })
+})
+
+describe('calculateScopedPairwiseDebts', () => {
+  const scoped = (
+    id: string,
+    groupId: string | null,
+    payer: string,
+    total: number,
+    people: string[],
+    currency = 'ZAR'
+  ): ExpenseRecord => ({
+    ...expensePaidBy(id, payer, total, people, currency),
+    groupId,
+  })
+
+  it('keeps group and non-group debts as separate lines', () => {
+    const edges = calculateScopedPairwiseDebts([
+      scoped('e1', 'house', 'lisbeth', 1000, ['liam', 'lisbeth']),
+      scoped('e2', null, 'lisbeth', 4000, ['liam', 'lisbeth']),
+    ])
+
+    expect(edges).toHaveLength(2)
+    expect(edges.map((e) => [e.groupId, e.amountCents])).toEqual(
+      expect.arrayContaining([
+        ['house', 500],
+        [null, 2000],
+      ])
+    )
+  })
+
+  it('separates the same pair by currency as well as group', () => {
+    const edges = calculateScopedPairwiseDebts([
+      scoped('e1', null, 'lisbeth', 1000, ['liam', 'lisbeth'], 'ZAR'),
+      scoped('e2', null, 'lisbeth', 1000, ['liam', 'lisbeth'], 'EUR'),
+    ])
+    expect(new Set(edges.map((e) => e.currency))).toEqual(new Set(['ZAR', 'EUR']))
+    expect(edges).toHaveLength(2)
+  })
+
+  it('still nets within a single scope', () => {
+    const edges = calculateScopedPairwiseDebts([
+      scoped('e1', 'house', 'lisbeth', 1000, ['liam', 'lisbeth']),
+      scoped('e2', 'house', 'liam', 600, ['liam', 'lisbeth']),
+    ])
+    expect(edges).toEqual([
+      {
+        fromProfileId: 'liam',
+        toProfileId: 'lisbeth',
+        currency: 'ZAR',
+        amountCents: 200,
+        groupId: 'house',
+      },
+    ])
+  })
+
+  it('does not let a settlement in one group clear a debt in another', () => {
+    const edges = calculateScopedPairwiseDebts(
+      [
+        scoped('e1', 'house', 'lisbeth', 1000, ['liam', 'lisbeth']),
+        scoped('e2', null, 'lisbeth', 1000, ['liam', 'lisbeth']),
+      ],
+      [
+        {
+          id: 's1',
+          currency: 'ZAR',
+          groupId: 'house',
+          fromProfileId: 'liam',
+          toProfileId: 'lisbeth',
+          amountCents: 500,
+        },
+      ]
+    )
+
+    // The house debt is cleared; the non-group one is untouched.
+    expect(edges).toHaveLength(1)
+    expect(edges[0].groupId).toBeNull()
+    expect(edges[0].amountCents).toBe(500)
+  })
+
+  it('sums scopes into a per-currency total for the headline', () => {
+    const edges = calculateScopedPairwiseDebts([
+      scoped('e1', 'house', 'lisbeth', 1000, ['liam', 'lisbeth']),
+      scoped('e2', null, 'lisbeth', 4000, ['liam', 'lisbeth']),
+      scoped('e3', null, 'lisbeth', 1000, ['liam', 'lisbeth'], 'EUR'),
+    ])
+
+    const totals = netBetween(edges, 'liam', 'lisbeth')
+    expect(totals.get('ZAR')).toBe(-2500)
+    expect(totals.get('EUR')).toBe(-500)
+  })
+
+  it('reports nothing between two people who are square', () => {
+    const edges = calculateScopedPairwiseDebts([
+      scoped('e1', null, 'lisbeth', 1000, ['liam', 'lisbeth']),
+      scoped('e2', null, 'liam', 1000, ['liam', 'lisbeth']),
+    ])
+    expect(netBetween(edges, 'liam', 'lisbeth').size).toBe(0)
   })
 })

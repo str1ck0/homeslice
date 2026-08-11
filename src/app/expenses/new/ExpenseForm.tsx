@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { createExpenseAction } from '@/app/actions'
+import { createExpenseAction, updateExpenseAction } from '@/app/actions'
 import { SPLIT_TYPES, splitExpense, type SplitType } from '@/core/split'
 import { formatCents, parseAmountToCents } from '@/core/money'
 import { CURRENCY_CODES } from '@/core/currencies'
@@ -14,6 +14,26 @@ import { uploadReceipts } from '@/lib/upload'
 interface Member {
   id: string
   name: string
+}
+
+export interface EditingExpense {
+  expenseId: string
+  description: string
+  /** Already formatted for the input, e.g. "300.00". */
+  amount: string
+  currency: string
+  expenseDate: string
+  splitType: SplitType
+  categoryId: string
+  payerId: string
+  participantIds: string[]
+  /** Keyed by profile id, in the form the matching split type expects. */
+  weights: Record<string, string>
+  /**
+   * The form offers one payer. An expense with several can only arrive via the
+   * API, and silently flattening it would quietly change what people owe.
+   */
+  multiplePayers: boolean
 }
 
 const SPLIT_LABELS: Record<SplitType, string> = {
@@ -41,6 +61,7 @@ export default function ExpenseForm({
   friends,
   defaultCurrency,
   categories,
+  editing,
 }: {
   currentProfileId: string
   currentProfileName: string
@@ -50,6 +71,7 @@ export default function ExpenseForm({
   friends: Member[]
   defaultCurrency: string
   categories: { id: string; name: string }[]
+  editing?: EditingExpense
 }) {
   const router = useRouter()
   const [groupId, setGroupId] = useState<string | null>(initialGroupId)
@@ -67,16 +89,21 @@ export default function ExpenseForm({
     return withMe
   }, [groupId, groupMembers, friends, currentProfileId, currentProfileName])
 
-  const [description, setDescription] = useState('')
-  const [amount, setAmount] = useState('')
-  const [currency, setCurrency] = useState(defaultCurrency)
-  const [expenseDate, setExpenseDate] = useState(() => new Date().toISOString().slice(0, 10))
-  const [categoryId, setCategoryId] = useState('')
-  const [payerId, setPayerId] = useState(currentProfileId)
-  const [splitType, setSplitType] = useState<SplitType>('equal')
-  const [selected, setSelected] = useState<string[]>(members.map((m) => m.id))
-  const [touchedSelection, setTouchedSelection] = useState(false)
-  const [weights, setWeights] = useState<Record<string, string>>({})
+  const [description, setDescription] = useState(editing?.description ?? '')
+  const [amount, setAmount] = useState(editing?.amount ?? '')
+  const [currency, setCurrency] = useState(editing?.currency ?? defaultCurrency)
+  const [expenseDate, setExpenseDate] = useState(
+    () => editing?.expenseDate ?? new Date().toISOString().slice(0, 10)
+  )
+  const [categoryId, setCategoryId] = useState(editing?.categoryId ?? '')
+  const [payerId, setPayerId] = useState(editing?.payerId ?? currentProfileId)
+  const [splitType, setSplitType] = useState<SplitType>(editing?.splitType ?? 'equal')
+  const [selected, setSelected] = useState<string[]>(
+    editing?.participantIds ?? members.map((m) => m.id)
+  )
+  // In edit mode the existing selection is the truth, so never overwrite it.
+  const [touchedSelection, setTouchedSelection] = useState(Boolean(editing))
+  const [weights, setWeights] = useState<Record<string, string>>(editing?.weights ?? {})
   const [images, setImages] = useState<File[]>([])
   const [busy, setBusy] = useState(false)
   const [uploadStatus, setUploadStatus] = useState<string | null>(null)
@@ -137,7 +164,7 @@ export default function ExpenseForm({
         setUploadStatus(null)
       }
 
-      const result = await createExpenseAction({
+      const payload = {
         groupId,
         description,
         amount,
@@ -152,14 +179,18 @@ export default function ExpenseForm({
           weight: parseWeight(weights[m.id], splitType, currency),
         })),
         imagePaths,
-      })
+      }
+
+      const result = editing
+        ? await updateExpenseAction(editing.expenseId, payload)
+        : await createExpenseAction(payload)
 
       if (!result.ok) {
         setError(result.error ?? 'Could not save the expense')
         return
       }
 
-      router.push(groupId ? `/groups/${groupId}` : '/dashboard')
+      router.push(editing ? `/expenses/${editing.expenseId}` : groupId ? `/groups/${groupId}` : '/dashboard')
       router.refresh()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save the expense')
@@ -181,18 +212,33 @@ export default function ExpenseForm({
     >
       <div className="flex items-center justify-between">
         <Link
-          href={groupId ? `/groups/${groupId}` : '/dashboard'}
+          href={
+            editing
+              ? `/expenses/${editing.expenseId}`
+              : groupId
+                ? `/groups/${groupId}`
+                : '/dashboard'
+          }
           className="text-sm text-muted hover:text-ink"
         >
           ← Cancel
         </Link>
-        <h1 className="text-lg font-semibold">New expense</h1>
+        <h1 className="text-lg font-semibold">{editing ? 'Edit expense' : 'New expense'}</h1>
         <span className="w-14" />
       </div>
+
+      {editing?.multiplePayers && (
+        <p className="rounded-xl bg-negative/10 px-4 py-3 text-sm text-negative">
+          This expense was paid by more than one person. The form only handles a single
+          payer, so saving would change who paid what — edit it via the API, or delete and
+          re-add it.
+        </p>
+      )}
 
       <label className="flex flex-col gap-1.5">
         <span className="text-sm font-medium">Where does this belong?</span>
         <select
+          disabled={Boolean(editing)}
           value={groupId ?? ''}
           onChange={(event) => {
             setGroupId(event.target.value || null)
@@ -200,7 +246,7 @@ export default function ExpenseForm({
             const next = groups.find((g) => g.id === event.target.value)
             if (next) setCurrency(next.currency)
           }}
-          className="rounded-xl border border-edge bg-raised px-4 py-3 text-base outline-none focus:border-accent"
+          className="rounded-xl border border-edge bg-raised px-4 py-3 text-base outline-none focus:border-accent disabled:opacity-60"
         >
           <option value="">Just friends — no group</option>
           {groups.map((group) => (
@@ -397,10 +443,15 @@ export default function ExpenseForm({
         <div className="mx-auto max-w-lg">
           <button
             type="submit"
-            disabled={busy || Boolean(preview?.error) || participants.length === 0}
+            disabled={
+              busy ||
+              Boolean(preview?.error) ||
+              participants.length === 0 ||
+              Boolean(editing?.multiplePayers)
+            }
             className="w-full rounded-xl bg-accent px-4 py-3.5 font-semibold text-white disabled:opacity-40"
           >
-            {busy ? (uploadStatus ?? 'Saving…') : 'Save expense'}
+            {busy ? (uploadStatus ?? 'Saving…') : editing ? 'Save changes' : 'Save expense'}
           </button>
         </div>
         <div style={{ height: 'env(safe-area-inset-bottom)' }} />

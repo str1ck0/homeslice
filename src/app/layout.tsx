@@ -11,6 +11,9 @@ export const metadata: Metadata = {
     apple: '/icons/icon-192.png',
   },
   appleWebApp: { capable: true, title: 'Homeslice', statusBarStyle: 'default' },
+  // Safari turns anything email- or number-shaped into a blue tappable link,
+  // which is noise on a screen full of amounts and addresses.
+  formatDetection: { email: false, telephone: false, address: false },
 }
 
 export const viewport: Viewport = {

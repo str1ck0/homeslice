@@ -22,13 +22,16 @@ interface Suggestion {
 export default function SettleForm({
   groupId,
   groupName,
+  backHref,
   currentProfileId,
   defaultCurrency,
   members,
   suggestions,
 }: {
-  groupId: string
+  groupId: string | null
   groupName: string
+  /** Where Cancel returns to — a group, or a friend. */
+  backHref?: string
   currentProfileId: string
   defaultCurrency: string
   members: Member[]
@@ -84,7 +87,7 @@ export default function SettleForm({
       return
     }
 
-    router.push(`/groups/${groupId}`)
+    router.push(backHref ?? (groupId ? `/groups/${groupId}` : '/friends'))
     router.refresh()
   }
 
@@ -94,7 +97,10 @@ export default function SettleForm({
       className="mx-auto flex min-h-dvh max-w-lg flex-col gap-5 px-5 py-8"
     >
       <div className="flex items-center justify-between">
-        <Link href={`/groups/${groupId}`} className="text-sm text-muted hover:text-ink">
+        <Link
+          href={backHref ?? (groupId ? `/groups/${groupId}` : '/friends')}
+          className="text-sm text-muted hover:text-ink"
+        >
           ← Cancel
         </Link>
         <h1 className="text-lg font-semibold">Settle up</h1>
@@ -102,7 +108,8 @@ export default function SettleForm({
       </div>
 
       <p className="text-sm text-muted">
-        Record a payment in {groupName}. This adjusts balances — it doesn&rsquo;t move real money.
+        {groupId ? `Record a payment in ${groupName}.` : `Record a payment with ${groupName}.`} This
+        adjusts balances — it doesn&rsquo;t move real money.
       </p>
 
       {suggestions.length > 0 && (
