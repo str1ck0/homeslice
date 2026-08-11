@@ -59,7 +59,11 @@ export default function AuthForm() {
       }
 
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        // Cookie sessions use the PKCE flow, so the link returns a ?code that
+        // must be exchanged before a session exists. Routing through the
+        // callback does that, then hands off to the reset form. Pointing
+        // straight at /reset-password leaves it with no session and no way in.
+        redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
       })
       if (error) throw error
       setNotice('Check your email for a reset link.')

@@ -226,3 +226,78 @@ export async function listExpenses(
     }
   })
 }
+
+export interface ExpenseDetail {
+  id: string
+  groupId: string | null
+  description: string
+  amountCents: number
+  currency: string
+  expenseDate: string
+  splitType: string
+  note: string | null
+  categoryName: string | null
+  createdBy: string
+  createdByName: string
+  participants: {
+    profileId: string
+    displayName: string
+    paidCents: number
+    owedCents: number
+  }[]
+  imageIds: string[]
+}
+
+export async function getExpense(expenseId: string): Promise<ExpenseDetail | null> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('expenses')
+    .select(
+      `id, group_id, description, amount_cents, currency, expense_date, split_type, note,
+       created_by,
+       categories(name),
+       author:profiles!expenses_created_by_fkey(display_name),
+       expense_participants(profile_id, paid_cents, owed_cents, profiles(display_name)),
+       expense_images(id, sort_order)`
+    )
+    .eq('id', expenseId)
+    .is('deleted_at', null)
+    .single()
+
+  if (error || !data) return null
+
+  const participants = (data.expense_participants ?? []) as unknown as {
+    profile_id: string
+    paid_cents: number
+    owed_cents: number
+    profiles: { display_name: string } | null
+  }[]
+
+  const images = (data.expense_images ?? []) as unknown as {
+    id: string
+    sort_order: number
+  }[]
+
+  return {
+    id: data.id,
+    groupId: data.group_id,
+    description: data.description,
+    amountCents: data.amount_cents,
+    currency: data.currency,
+    expenseDate: data.expense_date,
+    splitType: data.split_type,
+    note: data.note,
+    categoryName: (data.categories as unknown as { name: string } | null)?.name ?? null,
+    createdBy: data.created_by,
+    createdByName:
+      (data.author as unknown as { display_name: string } | null)?.display_name ?? 'Someone',
+    participants: participants.map((p) => ({
+      profileId: p.profile_id,
+      displayName: p.profiles?.display_name ?? 'Someone',
+      paidCents: p.paid_cents,
+      owedCents: p.owed_cents,
+    })),
+    imageIds: images.sort((a, b) => a.sort_order - b.sort_order).map((image) => image.id),
+  }
+}

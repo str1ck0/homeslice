@@ -8,6 +8,8 @@ import { SPLIT_TYPES, splitExpense, type SplitType } from '@/core/split'
 import { formatCents, parseAmountToCents } from '@/core/money'
 import { CURRENCY_CODES } from '@/core/currencies'
 import { Avatar } from '@/components/ui'
+import ImagePicker from '@/components/ImagePicker'
+import { uploadReceipts } from '@/lib/upload'
 
 interface Member {
   id: string
@@ -56,7 +58,9 @@ export default function ExpenseForm({
   const [splitType, setSplitType] = useState<SplitType>('equal')
   const [selected, setSelected] = useState<string[]>(members.map((m) => m.id))
   const [weights, setWeights] = useState<Record<string, string>>({})
+  const [images, setImages] = useState<File[]>([])
   const [busy, setBusy] = useState(false)
+  const [uploadStatus, setUploadStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const participants = members.filter((m) => selected.includes(m.id))
@@ -98,6 +102,15 @@ export default function ExpenseForm({
     try {
       const totalCents = parseAmountToCents(amount, currency)
 
+      // Upload first: an expense saved without its receipt is harder to fix
+      // than one that failed outright and can simply be retried.
+      let imagePaths: string[] = []
+      if (images.length > 0) {
+        setUploadStatus(`Uploading ${images.length} photo${images.length === 1 ? '' : 's'}…`)
+        imagePaths = await uploadReceipts(images)
+        setUploadStatus(null)
+      }
+
       const result = await createExpenseAction({
         groupId,
         description,
@@ -112,6 +125,7 @@ export default function ExpenseForm({
           profileId: m.id,
           weight: parseWeight(weights[m.id], splitType, currency),
         })),
+        imagePaths,
       })
 
       if (!result.ok) {
@@ -125,6 +139,7 @@ export default function ExpenseForm({
       setError(err instanceof Error ? err.message : 'Could not save the expense')
     } finally {
       setBusy(false)
+      setUploadStatus(null)
     }
   }
 
@@ -303,6 +318,8 @@ export default function ExpenseForm({
         </ul>
       </div>
 
+      <ImagePicker files={images} onChange={setImages} />
+
       {(preview?.error || error) && (
         <p role="alert" className="rounded-xl bg-negative/10 px-4 py-3 text-sm text-negative">
           {error ?? preview?.error}
@@ -316,7 +333,7 @@ export default function ExpenseForm({
             disabled={busy || Boolean(preview?.error) || participants.length === 0}
             className="w-full rounded-xl bg-accent px-4 py-3.5 font-semibold text-white disabled:opacity-40"
           >
-            {busy ? 'Saving…' : 'Save expense'}
+            {busy ? (uploadStatus ?? 'Saving…') : 'Save expense'}
           </button>
         </div>
         <div style={{ height: 'env(safe-area-inset-bottom)' }} />

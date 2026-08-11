@@ -1,79 +1,56 @@
 /**
- * Compresses an image file to reduce size and improve loading performance
- * @param file - The image file to compress
- * @param maxWidth - Maximum width in pixels (default: 400)
- * @param maxHeight - Maximum height in pixels (default: 400)
- * @param quality - JPEG quality 0-1 (default: 0.8)
- * @returns Compressed image as a File object
+ * Client-side image compression.
+ *
+ * Phone cameras produce 3-5 MB photos. A receipt only needs to be readable,
+ * so resizing to fit within 1600px and re-encoding as JPEG typically gets it
+ * under 300 KB — which matters on mobile data and keeps storage costs at zero.
+ *
+ * Receipts get a larger bound than avatars because the point is to read the
+ * line items back later.
  */
+
+export interface CompressOptions {
+  maxWidth?: number
+  maxHeight?: number
+  quality?: number
+}
+
 export async function compressImage(
   file: File,
-  maxWidth = 400,
-  maxHeight = 400,
-  quality = 0.8
+  { maxWidth = 1600, maxHeight = 1600, quality = 0.82 }: CompressOptions = {}
 ): Promise<File> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
+  // Anything that isn't a bitmap (HEIC on older browsers, PDFs) is passed
+  // through untouched rather than corrupted by a canvas round-trip.
+  if (!file.type.startsWith('image/')) return file
 
-    reader.onload = (e) => {
-      const img = new Image()
+  const bitmap = await createImageBitmap(file).catch(() => null)
+  if (!bitmap) return file
 
-      img.onload = () => {
-        // Calculate new dimensions while maintaining aspect ratio
-        let width = img.width
-        let height = img.height
+  let { width, height } = bitmap
+  const scale = Math.min(maxWidth / width, maxHeight / height, 1)
+  width = Math.round(width * scale)
+  height = Math.round(height * scale)
 
-        if (width > height) {
-          if (width > maxWidth) {
-            height = (height * maxWidth) / width
-            width = maxWidth
-          }
-        } else {
-          if (height > maxHeight) {
-            width = (width * maxHeight) / height
-            height = maxHeight
-          }
-        }
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
 
-        // Create canvas and draw resized image
-        const canvas = document.createElement('canvas')
-        canvas.width = width
-        canvas.height = height
+  const context = canvas.getContext('2d')
+  if (!context) return file
 
-        const ctx = canvas.getContext('2d')
-        if (!ctx) {
-          reject(new Error('Failed to get canvas context'))
-          return
-        }
+  context.drawImage(bitmap, 0, 0, width, height)
+  bitmap.close()
 
-        ctx.drawImage(img, 0, 0, width, height)
+  const blob = await new Promise<Blob | null>((resolve) =>
+    canvas.toBlob(resolve, 'image/jpeg', quality)
+  )
+  if (!blob) return file
 
-        // Convert canvas to blob
-        canvas.toBlob(
-          (blob) => {
-            if (!blob) {
-              reject(new Error('Failed to compress image'))
-              return
-            }
+  // If compression made it bigger (already-small images), keep the original.
+  if (blob.size >= file.size && scale === 1) return file
 
-            // Create new file from blob
-            const compressedFile = new File([blob], file.name, {
-              type: 'image/jpeg',
-              lastModified: Date.now(),
-            })
-
-            resolve(compressedFile)
-          },
-          'image/jpeg',
-          quality
-        )
-      }
-
-      img.onerror = () => reject(new Error('Failed to load image'))
-      img.src = e.target?.result as string
-    }
-
-    reader.onerror = () => reject(new Error('Failed to read file'))
-    reader.readAsDataURL(file)
+  return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', {
+    type: 'image/jpeg',
+    lastModified: Date.now(),
   })
 }

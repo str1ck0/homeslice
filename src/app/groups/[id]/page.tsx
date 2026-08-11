@@ -134,9 +134,22 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
                 const yourNet = expense.yourPaidCents - expense.yourShareCents
                 return (
                   <li key={expense.id}>
-                    <Card className="flex items-center gap-3 p-4">
+                    <Link
+                      href={`/expenses/${expense.id}`}
+                      className="flex items-center gap-3 rounded-2xl border border-edge bg-raised p-4 transition-colors hover:border-accent/50"
+                    >
                       <div className="min-w-0 flex-1">
-                        <p className="truncate font-semibold">{expense.description}</p>
+                        <p className="truncate font-semibold">
+                          {expense.description}
+                          {expense.imageCount > 0 && (
+                            <span
+                              className="ml-1.5 text-muted"
+                              title={`${expense.imageCount} photo${expense.imageCount === 1 ? '' : 's'}`}
+                            >
+                              &#128247;
+                            </span>
+                          )}
+                        </p>
                         <p className="truncate text-sm text-muted">
                           {expense.paidByNames.length > 0
                             ? `${expense.paidByNames.join(' & ')} paid ${formatCents(expense.amountCents, expense.currency)}`
@@ -153,7 +166,7 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
                           className="font-semibold"
                         />
                       </div>
-                    </Card>
+                    </Link>
                   </li>
                 )
               })}
