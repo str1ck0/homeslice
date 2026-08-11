@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getCurrentProfile } from '@/server/services/session'
 import { Avatar, Card, PageShell } from '@/components/ui'
 import SignOutButton from './SignOutButton'
+import UsernameField from './UsernameField'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,18 +17,22 @@ export default async function AccountPage() {
         <div className="min-w-0">
           <p className="truncate text-lg font-semibold">{profile.display_name}</p>
           <p className="truncate text-sm text-muted">{profile.email}</p>
-          {profile.username && (
-            <p className="truncate text-sm text-muted">@{profile.username}</p>
-          )}
         </div>
       </Card>
 
       <Card className="mt-3 divide-y divide-edge">
+        <UsernameField current={profile.username} />
         <div className="flex items-center justify-between p-4">
           <span className="text-sm text-muted">Default currency</span>
           <span className="text-sm font-medium">{profile.default_currency}</span>
         </div>
       </Card>
+
+      {!profile.username && (
+        <p className="mt-3 px-1 text-sm text-muted">
+          Pick a username so friends can add you without swapping email addresses.
+        </p>
+      )}
 
       <SignOutButton />
     </PageShell>

@@ -5,28 +5,46 @@ import { useRouter } from 'next/navigation'
 import { addFriendAction } from '@/app/actions'
 
 /**
- * Add by email, with a name as a fallback.
+ * Add by username or email, with a name as the fallback.
  *
- * If the email belongs to someone already on Homeslice they are linked
- * straight away. If not, a placeholder is created so you can start splitting
- * immediately — they inherit the history when they sign up with that address.
- * Waiting for someone to register before you can record a debt is the sort of
- * friction that makes people go back to a group chat.
+ * Follows the shape Splitwise uses — one identifier field, a name, and an
+ * action that stays disabled until there is enough to work with — minus the
+ * contacts picker, which needs an address book the browser cannot reach on
+ * iOS, and minus the invite promise, since Homeslice sends no email.
+ *
+ * The reassurance line is deliberately different from Splitwise's "nothing
+ * sends just yet": nothing sends at all, ever, and saying so is more useful
+ * than implying an invite is coming.
  */
 export default function AddFriendButton({ compact = false }: { compact?: boolean }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
-  const [email, setEmail] = useState('')
+  const [identifier, setIdentifier] = useState('')
   const [name, setName] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // A leading @ is how people write a username; only an @ inside the string
+  // means an email. Without this, typing "@sam" is read as an email address.
+  const isHandle = identifier.trim().startsWith('@')
+  const looksLikeEmail = !isHandle && identifier.includes('@')
+  const hasIdentifier = identifier.trim() !== ''
+  // An email can create a placeholder, so it needs a name. A username must
+  // already belong to somebody, so it does not.
+  const needsName = !hasIdentifier || looksLikeEmail
+  const canSubmit = hasIdentifier ? (!needsName || name.trim() !== '') : name.trim() !== ''
+
+  function close() {
+    setOpen(false)
+    setError(null)
+  }
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
     setBusy(true)
     setError(null)
 
-    const result = await addFriendAction(email, name || undefined)
+    const result = await addFriendAction(identifier, name || undefined)
     setBusy(false)
 
     if (!result.ok) {
@@ -34,9 +52,9 @@ export default function AddFriendButton({ compact = false }: { compact?: boolean
       return
     }
 
-    setEmail('')
+    setIdentifier('')
     setName('')
-    setOpen(false)
+    close()
     router.refresh()
   }
 
@@ -56,70 +74,73 @@ export default function AddFriendButton({ compact = false }: { compact?: boolean
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end bg-black/40 sm:items-center sm:justify-center">
-      <form
-        onSubmit={handleSubmit}
-        className="w-full rounded-t-2xl border border-edge bg-raised p-5 sm:max-w-sm sm:rounded-2xl"
-      >
-        <h2 className="text-lg font-semibold">Add a friend</h2>
-        <p className="mt-1 text-sm text-muted">
-          They don&rsquo;t need an account. Add them now, and they&rsquo;ll pick up the history
-          if they sign up later.
+    <div className="fixed inset-0 z-50 flex flex-col bg-surface">
+      <header className="flex items-center justify-between border-b border-edge px-4 py-4">
+        <button onClick={close} aria-label="Close" className="w-16 text-left text-2xl leading-none">
+          ×
+        </button>
+        <h2 className="text-base font-semibold">Add friend</h2>
+        <span className="w-16" />
+      </header>
+
+      <form onSubmit={handleSubmit} className="flex flex-1 flex-col gap-5 overflow-y-auto p-5">
+        <label className="flex flex-col gap-1.5">
+          <span className="text-sm font-medium">Username or email</span>
+          <input
+            value={identifier}
+            onChange={(event) => setIdentifier(event.target.value)}
+            autoFocus
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            inputMode={looksLikeEmail ? 'email' : 'text'}
+            placeholder="@sam  or  sam@example.com"
+            className="rounded-xl border border-edge bg-raised px-4 py-3 text-base outline-none focus:border-accent"
+          />
+          <span className="text-xs text-muted">
+            {looksLikeEmail
+              ? "If nobody's using that email, they'll be added as a placeholder."
+              : 'A username finds someone already on Homeslice.'}
+          </span>
+        </label>
+
+        <label className="flex flex-col gap-1.5">
+          <span className="text-sm font-medium">
+            Their name{' '}
+            <span className="font-normal text-muted">
+              {needsName ? 'Required' : 'Optional'}
+            </span>
+          </span>
+          <input
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            maxLength={80}
+            placeholder="Sam"
+            className="rounded-xl border border-edge bg-raised px-4 py-3 text-base outline-none focus:border-accent"
+          />
+        </label>
+
+        <p className="text-center text-sm text-muted text-balance">
+          Nothing is sent to them — Homeslice doesn&rsquo;t email anyone. Add them now, split
+          straight away, and send them the link yourself when you like.
         </p>
 
-        <div className="mt-4 flex flex-col gap-3">
-          <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium">Their email</span>
-            <input
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="sam@example.com"
-              className="rounded-xl border border-edge bg-surface px-4 py-3 text-base outline-none focus:border-accent"
-            />
-          </label>
+        {error && (
+          <p role="alert" className="rounded-xl bg-negative/10 px-4 py-3 text-sm text-negative">
+            {error}
+          </p>
+        )}
 
-          <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium">
-              Their name{' '}
-              <span className="font-normal text-muted">
-                Needed if they&rsquo;re not on Homeslice
-              </span>
-            </span>
-            <input
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              maxLength={80}
-              placeholder="Sam"
-              className="rounded-xl border border-edge bg-surface px-4 py-3 text-base outline-none focus:border-accent"
-            />
-          </label>
-
-          {error && (
-            <p role="alert" className="rounded-xl bg-negative/10 px-4 py-3 text-sm text-negative">
-              {error}
-            </p>
-          )}
-
-          <div className="flex gap-2">
-            <button
-              type="submit"
-              disabled={busy}
-              className="flex-1 rounded-xl bg-accent px-4 py-3 font-semibold text-white disabled:opacity-50"
-            >
-              {busy ? 'Adding…' : 'Add friend'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="rounded-xl border border-edge px-4 py-3 font-semibold text-muted"
-            >
-              Cancel
-            </button>
-          </div>
+        <div className="mt-auto">
+          <button
+            type="submit"
+            disabled={busy || !canSubmit}
+            className="w-full rounded-xl bg-accent px-4 py-3.5 font-semibold text-white transition-opacity disabled:opacity-40"
+          >
+            {busy ? 'Adding…' : 'Add friend'}
+          </button>
+          <div style={{ height: 'env(safe-area-inset-bottom)' }} />
         </div>
-
-        <div style={{ height: 'env(safe-area-inset-bottom)' }} />
       </form>
     </div>
   )

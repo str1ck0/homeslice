@@ -14,7 +14,7 @@ import { z } from 'zod'
 import { createGroup, joinGroupByCode, addPlaceholderMember } from '@/server/services/groups'
 import { createExpense, deleteExpense, type ExpenseInput } from '@/server/services/expenses'
 import { recordSettlement, type SettlementInput } from '@/server/services/settlements'
-import { addFriend } from '@/server/services/friends'
+import { addFriend, setUsername } from '@/server/services/friends'
 
 export interface ActionResult {
   ok: boolean
@@ -113,12 +113,25 @@ export async function recordSettlementAction(input: SettlementInput): Promise<Ac
   }
 }
 
-export async function addFriendAction(email: string, displayName?: string): Promise<ActionResult> {
+export async function addFriendAction(
+  identifier: string,
+  displayName?: string
+): Promise<ActionResult> {
   try {
-    const profileId = await addFriend(email, displayName)
+    const profileId = await addFriend(identifier, displayName)
     revalidatePath('/friends')
     revalidatePath('/expenses/new')
     return { ok: true, data: profileId }
+  } catch (error) {
+    return toResult(error)
+  }
+}
+
+export async function setUsernameAction(username: string): Promise<ActionResult> {
+  try {
+    const saved = await setUsername(username)
+    revalidatePath('/account')
+    return { ok: true, data: saved }
   } catch (error) {
     return toResult(error)
   }

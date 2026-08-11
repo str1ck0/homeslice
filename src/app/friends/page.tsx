@@ -60,7 +60,7 @@ export default async function FriendsPage() {
         <Card>
           <EmptyState
             title="No friends yet"
-            body="Add someone by email. If they're not on Homeslice you can still split with them — they'll pick up the history when they sign up."
+            body="Add someone by their username, or by email. If they're not on Homeslice you can still split with them — they'll pick up the history when they sign up."
             action={<AddFriendButton />}
           />
         </Card>
@@ -80,7 +80,11 @@ export default async function FriendsPage() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-semibold">{friend.displayName}</p>
                     <p className="truncate text-sm text-muted">
-                      {friend.isPlaceholder ? "Hasn't signed up yet" : friend.email}
+                      {friend.isPlaceholder
+                        ? "Hasn't signed up yet"
+                        : friend.username
+                          ? `@${friend.username}`
+                          : friend.email}
                     </p>
                   </div>
                   <div className="text-right">

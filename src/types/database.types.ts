@@ -853,7 +853,7 @@ export type Database = {
     }
     Functions: {
       add_friend: {
-        Args: { p_display_name?: string; p_email: string }
+        Args: { p_display_name?: string; p_identifier: string }
         Returns: string
       }
       add_placeholder_member: {
@@ -895,6 +895,7 @@ export type Database = {
       is_group_admin: { Args: { target_group: string }; Returns: boolean }
       join_group_by_code: { Args: { code: string }; Returns: string }
       my_group_ids: { Args: never; Returns: string[] }
+      set_username: { Args: { p_username: string }; Returns: string }
       update_expense: {
         Args: {
           p_amount_cents: number
