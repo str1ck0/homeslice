@@ -122,17 +122,31 @@ deliberately, because a repeat there is idempotent or harmless.
 promise settles. Leave the button disabled rather than restoring it, or it comes
 back to life over a page that is still loading.
 
-**Two image buckets, two different rules.** `receipts` is private: members read
-it through `/api/expense-images/[id]`, which checks access and mints a
-short-lived signed URL. `avatars` is public, because faces appear dozens to a
-page and a signed redirect per face would be a request each — paths are
-unguessable UUIDs under the uploader's auth id, and writes are restricted to
-your own folder. Before 12 August every avatar write policy was scoped to the
-bucket alone, so any signed-in user could overwrite or delete anyone's photo.
+**Two image buckets, two different rules — a deliberate split, agreed on
+12 August.**
 
-**Seven orphaned files sit in `avatars`** from the pre-rebuild app — flat paths,
-plus a `notes/` and a `house-` prefix. Nothing references them. Left alone
-because they are yours to judge, not mine.
+`receipts` and `documents` are **private**. Members reach a receipt through
+`/api/expense-images/[id]`, which checks access as the signed-in user and then
+mints a ten-minute signed URL with the service role. A receipt shows what you
+bought and where you were, and a lease agreement is worse, so neither may sit
+behind a guessable public URL.
+
+`avatars` is **public**. The reasoning, so nobody has to re-derive it: avatars
+appear dozens to a page in member and friend lists, and routing each through a
+signed-URL redirect would cost an extra request per face on exactly the screens
+that need to feel instant. What holds instead is that paths are unguessable
+UUIDs under the uploader's auth id, and writes are restricted to your own
+folder. The exposure is real but small — someone who obtains a URL can view
+that photo, and it stays viewable until the file is replaced or removed.
+
+The line between them is sensitivity, not convenience: a face someone chose to
+show the people they split with, versus a record of where they were and what
+they spent. If that judgement ever changes, avatars can move behind the same
+route receipts use; the picker and the storage layout would not need to.
+
+Before 12 August every avatar **write** policy was scoped to the bucket alone —
+including the two named "own" — so any signed-in user could overwrite or delete
+anybody's photo. Two integration tests now hold that line.
 
 **Applying migrations:** `./scripts/db-query.sh -f supabase/migrations/<file>.sql`.
 It reads the Supabase token from the macOS keychain, so there's no password
