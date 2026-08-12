@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
@@ -16,13 +16,28 @@ export default function AuthForm() {
   const [password, setPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [busy, setBusy] = useState(false)
+  // Held true through the navigation that follows a success, so the button
+  // never flips back to "Sign in" over a page that is still loading.
+  const [succeeded, setSucceeded] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const submitting = useRef(false)
 
   const supabase = createClient()
 
+  /** Where to land, carrying a flag so the destination can confirm it worked. */
+  function destination(): string {
+    const [path, query] = next.split('?')
+    const search = new URLSearchParams(query ?? '')
+    search.set('welcome', '1')
+    return `${path}?${search.toString()}`
+  }
+
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
+    if (submitting.current) return
+    submitting.current = true
+
     setBusy(true)
     setError(null)
     setNotice(null)
@@ -31,7 +46,8 @@ export default function AuthForm() {
       if (mode === 'signin') {
         const { error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) throw error
-        router.push(next)
+        setSucceeded(true)
+        router.push(destination())
         router.refresh()
         return
       }
@@ -43,7 +59,8 @@ export default function AuthForm() {
           options: { data: { display_name: displayName || email.split('@')[0] } },
         })
         if (error) throw error
-        router.push(next)
+        setSucceeded(true)
+        router.push(destination())
         router.refresh()
         return
       }
@@ -69,9 +86,15 @@ export default function AuthForm() {
       setNotice('Check your email for a reset link.')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'That did not work')
-    } finally {
       setBusy(false)
+      submitting.current = false
+      return
     }
+
+    // Only the email modes reach here having finished: the password modes
+    // returned above and are still navigating.
+    setBusy(false)
+    submitting.current = false
   }
 
   const copy = {
@@ -100,7 +123,7 @@ export default function AuthForm() {
               onChange={setDisplayName}
               autoComplete="name"
               maxLength={40}
-              placeholder="Stricko"
+              placeholder="John Smith"
             />
             {/* Worth saying up front: this is the one identity, and it is how
                 people find you. It can be changed later. */}
@@ -145,9 +168,10 @@ export default function AuthForm() {
         <button
           type="submit"
           disabled={busy}
-          className="mt-2 rounded-xl bg-accent px-4 py-3.5 font-semibold text-white transition-opacity disabled:opacity-50"
+          className="mt-2 flex items-center justify-center gap-2 rounded-xl bg-accent px-4 py-3.5 font-semibold text-white transition-opacity disabled:opacity-70"
         >
-          {busy ? 'Just a moment…' : copy.cta}
+          {busy && <Spinner />}
+          {succeeded ? 'Signed in' : busy ? 'Just a moment…' : copy.cta}
         </button>
       </form>
 
@@ -174,6 +198,16 @@ export default function AuthForm() {
         )}
       </div>
     </div>
+  )
+}
+
+/** A plain CSS spinner — no icon dependency for one shape. */
+function Spinner() {
+  return (
+    <span
+      aria-hidden
+      className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-white/40 border-t-white"
+    />
   )
 }
 

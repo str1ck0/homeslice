@@ -10,7 +10,12 @@ import { Card, CurrencyTotals, EmptyState, ExpenseRow, PageShell } from '@/compo
 // Balances change on every expense, so this page is always rendered fresh.
 export const dynamic = 'force-dynamic'
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ welcome?: string }>
+}) {
+  const { welcome } = await searchParams
   const profile = await getCurrentProfile()
   if (!profile) redirect('/auth')
 
@@ -74,6 +79,15 @@ export default async function DashboardPage() {
         </Link>
       }
     >
+      {welcome && (
+        <p
+          role="status"
+          className="mb-6 rounded-xl bg-positive/10 px-4 py-3 text-sm font-medium text-positive"
+        >
+          Signed in. Welcome back, {profile.display_name}.
+        </p>
+      )}
+
       {overview.overall.size === 0 ? (
         <Card className="mb-6 p-5">
           <p className="text-sm text-muted">

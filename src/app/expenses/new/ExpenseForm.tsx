@@ -4,11 +4,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createExpenseAction, updateExpenseAction } from '@/app/actions'
-import { SPLIT_TYPES, splitExpense, type SplitType } from '@/core/split'
+import { splitExpense, type SplitType } from '@/core/split'
 import { formatCents, parseAmountToCents } from '@/core/money'
 import { CURRENCY_CODES } from '@/core/currencies'
-import { Avatar } from '@/components/ui'
 import ImagePicker from '@/components/ImagePicker'
+import SplitChooser, { parseWeight } from './SplitChooser'
 import { uploadReceipts } from '@/lib/upload'
 
 interface Member {
@@ -34,22 +34,6 @@ export interface EditingExpense {
    * API, and silently flattening it would quietly change what people owe.
    */
   multiplePayers: boolean
-}
-
-const SPLIT_LABELS: Record<SplitType, string> = {
-  equal: 'Equally',
-  exact: 'Exact amounts',
-  percent: 'Percentages',
-  shares: 'Shares',
-  adjustment: 'Plus / minus',
-}
-
-const SPLIT_HINTS: Record<SplitType, string> = {
-  equal: 'Everyone selected pays the same.',
-  exact: 'Type what each person owes. Must add up to the total.',
-  percent: 'Type each share as a percentage. Must add up to 100%.',
-  shares: 'Give people weights — 2 shares pays twice what 1 share pays.',
-  adjustment: 'Add or subtract a fixed amount, then split the rest equally.',
 }
 
 export default function ExpenseForm({
@@ -143,13 +127,6 @@ export default function ExpenseForm({
     if (!touchedSelection) setSelected(members.map((m) => m.id))
   }, [members, touchedSelection])
 
-  function toggleMember(id: string) {
-    setTouchedSelection(true)
-    setSelected((current) =>
-      current.includes(id) ? current.filter((value) => value !== id) : [...current, id]
-    )
-  }
-
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
 
@@ -217,8 +194,6 @@ export default function ExpenseForm({
 
   // The chosen payer may not exist in the new cast after switching group.
   const effectivePayerId = members.some((m) => m.id === payerId) ? payerId : currentProfileId
-
-  const needsWeights = splitType !== 'equal'
 
   return (
     <form
@@ -345,112 +320,39 @@ export default function ExpenseForm({
         </label>
       </div>
 
-      <label className="flex flex-col gap-1.5">
-        <span className="text-sm font-medium">Who paid?</span>
-        <select
-          value={effectivePayerId}
-          onChange={(event) => setPayerId(event.target.value)}
-          className="rounded-xl border border-edge bg-raised px-4 py-3 text-base outline-none focus:border-accent"
-        >
-          {members.map((member) => (
-            <option key={member.id} value={member.id}>
-              {member.id === currentProfileId ? 'You' : member.name}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <div className="flex flex-col gap-2">
-        <span className="text-sm font-medium">How should it split?</span>
-        <div className="grid grid-cols-3 gap-1.5">
-          {SPLIT_TYPES.map((type) => (
-            <button
-              key={type}
-              type="button"
-              onClick={() => setSplitType(type)}
-              className={`rounded-xl border px-2 py-2.5 text-xs font-semibold transition-colors ${
-                splitType === type
-                  ? 'border-accent bg-accent/10 text-accent'
-                  : 'border-edge text-muted hover:text-ink'
-              }`}
-            >
-              {SPLIT_LABELS[type]}
-            </button>
-          ))}
+      {members.length === 1 ? (
+        <div className="rounded-xl border border-dashed border-edge p-4 text-sm text-muted">
+          <p className="font-medium text-ink">There&rsquo;s nobody to split with yet.</p>
+          <p className="mt-1">
+            {groupId
+              ? 'Add someone to this group first.'
+              : 'Add a friend, or pick a group above.'}
+          </p>
+          <Link
+            href={groupId ? `/groups/${groupId}` : '/friends'}
+            className="mt-3 inline-block rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white"
+          >
+            {groupId ? 'Add someone to the group' : 'Add a friend'}
+          </Link>
         </div>
-        <p className="text-xs text-muted">{SPLIT_HINTS[splitType]}</p>
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <span className="text-sm font-medium">
-          Split between{' '}
-          <span className="font-normal text-muted">
-            {participants.length} of {members.length}
-          </span>
-        </span>
-
-        {members.length === 1 && (
-          <div className="rounded-xl border border-dashed border-edge p-4 text-sm text-muted">
-            <p className="font-medium text-ink">There&rsquo;s nobody to split with yet.</p>
-            <p className="mt-1">
-              {groupId
-                ? 'Add someone to this group first.'
-                : 'Add a friend, or pick a group above.'}
-            </p>
-            <Link
-              href={groupId ? `/groups/${groupId}` : '/friends'}
-              className="mt-3 inline-block rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white"
-            >
-              {groupId ? 'Add someone to the group' : 'Add a friend'}
-            </Link>
-          </div>
-        )}
-        <ul className="flex flex-col gap-1.5">
-          {members.map((member) => {
-            const isSelected = selected.includes(member.id)
-            const share = preview?.shares?.find((s) => s.profileId === member.id)
-
-            return (
-              <li
-                key={member.id}
-                className={`flex items-center gap-3 rounded-xl border p-3 transition-colors ${
-                  isSelected ? 'border-edge bg-raised' : 'border-edge/50 opacity-50'
-                }`}
-              >
-                <button
-                  type="button"
-                  onClick={() => toggleMember(member.id)}
-                  aria-pressed={isSelected}
-                  className="flex min-w-0 flex-1 items-center gap-3 text-left"
-                >
-                  <Avatar name={member.name} size={32} />
-                  <span className="truncate text-sm font-medium">
-                    {member.id === currentProfileId ? 'You' : member.name}
-                  </span>
-                </button>
-
-                {isSelected && needsWeights && (
-                  <input
-                    value={weights[member.id] ?? ''}
-                    onChange={(event) =>
-                      setWeights((current) => ({ ...current, [member.id]: event.target.value }))
-                    }
-                    inputMode="decimal"
-                    placeholder={splitType === 'percent' ? '%' : splitType === 'shares' ? '1' : '0'}
-                    className="amount w-20 rounded-lg border border-edge bg-surface px-2 py-1.5 text-right text-sm outline-none focus:border-accent"
-                  />
-                )}
-
-                {isSelected && share && (
-                  <span className="amount w-24 text-right text-sm font-semibold text-muted">
-                    {formatCents(share.owedCents, currency)}
-                  </span>
-                )}
-              </li>
-            )
-          })}
-        </ul>
-      </div>
+      ) : (
+        <SplitChooser
+          members={members}
+          currentProfileId={currentProfileId}
+          currency={currency}
+          amount={amount}
+          value={{ payerId: effectivePayerId, splitType, selected, weights }}
+          onChange={(next) => {
+            setPayerId(next.payerId)
+            setSplitType(next.splitType)
+            setWeights(next.weights)
+            // A deliberate choice, so the "everyone by default" effect must
+            // stop overwriting it.
+            setTouchedSelection(true)
+            setSelected(next.selected)
+          }}
+        />
+      )}
 
       <ImagePicker files={images} onChange={setImages} />
 
@@ -479,27 +381,4 @@ export default function ExpenseForm({
       </div>
     </form>
   )
-}
-
-/**
- * Weight inputs mean different things per split type, so they are parsed
- * differently: exact amounts and adjustments are money, percentages and shares
- * are plain numbers.
- */
-function parseWeight(
-  raw: string | undefined,
-  splitType: SplitType,
-  currency: string
-): number | undefined {
-  if (splitType === 'equal') return undefined
-
-  const value = (raw ?? '').trim()
-  if (value === '') return splitType === 'shares' ? 1 : 0
-
-  if (splitType === 'exact' || splitType === 'adjustment') {
-    return parseAmountToCents(value, currency)
-  }
-
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : 0
 }

@@ -85,7 +85,7 @@ export default function AddFriendButton({ compact = false }: { compact?: boolean
             autoCorrect="off"
             spellCheck={false}
             maxLength={40}
-            placeholder="Stricko"
+            placeholder="Enter their name"
             className="rounded-xl border border-edge bg-raised px-4 py-3 text-base outline-none focus:border-accent"
           />
           <span className="text-xs text-muted">
