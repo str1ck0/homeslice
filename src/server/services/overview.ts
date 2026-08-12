@@ -153,6 +153,34 @@ export function debtLinesInGroup(
     })
 }
 
+/**
+ * What one person still owes or is owed inside a group, against anybody.
+ *
+ * Used to refuse removing someone mid-debt. Note it asks about *their* whole
+ * position in the group, not just their position with you: letting an admin
+ * remove someone who still owes a third person would quietly delete a debt
+ * that was never theirs to forgive.
+ */
+export function outstandingInGroup(
+  overview: Overview,
+  profileId: string,
+  groupId: string | null
+): Map<string, Cents> {
+  const totals = new Map<string, Cents>()
+
+  for (const edge of overview.edges) {
+    if (edge.groupId !== groupId) continue
+    if (edge.fromProfileId !== profileId && edge.toProfileId !== profileId) continue
+    const signed = edge.toProfileId === profileId ? edge.amountCents : -edge.amountCents
+    totals.set(edge.currency, (totals.get(edge.currency) ?? 0) + signed)
+  }
+
+  for (const [currency, amount] of totals) {
+    if (amount === 0) totals.delete(currency)
+  }
+  return totals
+}
+
 /** Sum a set of lines per currency. */
 export function sumLines(lines: readonly DebtLine[]): Map<string, Cents> {
   const totals = new Map<string, Cents>()

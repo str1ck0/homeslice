@@ -9,6 +9,7 @@
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { requireProfile } from './session'
+import { getOverview, totalWith } from './overview'
 
 export interface Friend {
   profileId: string
@@ -59,6 +60,38 @@ export async function setUsername(username: string): Promise<string | null> {
 
   if (error) throw new Error(error.message)
   return (data as string | null) ?? null
+}
+
+/**
+ * Remove a friend.
+ *
+ * Only the friendship goes: shared expenses, and any group you are both still
+ * in, are untouched. Refused while anything is outstanding between you, in any
+ * group or none — a debt should be settled or written off deliberately, not
+ * disappeared by tidying up a list.
+ */
+export async function removeFriend(profileId: string): Promise<void> {
+  const parsed = z.string().uuid().parse(profileId)
+  const me = await requireProfile()
+
+  const overview = await getOverview(me.id)
+  const outstanding = totalWith(overview, me.id, parsed)
+  if (outstanding.size > 0) {
+    throw new Error('Settle up with them before removing them')
+  }
+
+  const supabase = await createClient()
+
+  // Friendships are stored one way round, smallest id first.
+  const [a, b] = me.id < parsed ? [me.id, parsed] : [parsed, me.id]
+
+  const { error } = await supabase
+    .from('friendships')
+    .delete()
+    .eq('profile_a', a)
+    .eq('profile_b', b)
+
+  if (error) throw new Error(error.message)
 }
 
 export async function listFriends(): Promise<Friend[]> {

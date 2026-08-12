@@ -15,7 +15,12 @@ import AddFriendButton from './AddFriendButton'
 
 export const dynamic = 'force-dynamic'
 
-export default async function FriendsPage() {
+export default async function FriendsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ removed?: string }>
+}) {
+  const { removed } = await searchParams
   const profile = await getCurrentProfile()
   if (!profile) redirect('/auth')
 
@@ -43,6 +48,15 @@ export default async function FriendsPage() {
       nav="friends"
       action={<AddFriendButton compact />}
     >
+      {removed && (
+        <p
+          role="status"
+          className="mb-5 rounded-xl bg-positive/10 px-4 py-3 text-sm font-medium text-positive"
+        >
+          Friend removed.
+        </p>
+      )}
+
       {overview.overall.size > 0 && (
         <p className="mb-5 text-lg font-semibold text-balance">
           Overall, {owed ? "you're owed" : 'you owe'}{' '}

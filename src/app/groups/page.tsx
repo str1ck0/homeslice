@@ -17,9 +17,9 @@ export const dynamic = 'force-dynamic'
 export default async function GroupsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ deleted?: string }>
+  searchParams: Promise<{ deleted?: string; left?: string }>
 }) {
-  const { deleted } = await searchParams
+  const { deleted, left } = await searchParams
   const profile = await getCurrentProfile()
   if (!profile) redirect('/auth')
 
@@ -47,12 +47,12 @@ export default async function GroupsPage({
         </Link>
       }
     >
-      {deleted && (
+      {(deleted || left) && (
         <p
           role="status"
           className="mb-5 rounded-xl bg-positive/10 px-4 py-3 text-sm font-medium text-positive"
         >
-          {deleted === '1' ? 'Group deleted.' : `“${deleted}” deleted.`}
+          {left ? 'You left the group.' : deleted === '1' ? 'Group deleted.' : `“${deleted}” deleted.`}
         </p>
       )}
 

@@ -8,6 +8,8 @@ import { listExpenses } from '@/server/services/expenses'
 import { Avatar, Card, CurrencyTotals, DebtBreakdown, EmptyState, ExpenseRow } from '@/components/ui'
 import AddMemberButton from './AddMemberButton'
 import DeleteGroupButton from './DeleteGroupButton'
+import MemberList from './MemberList'
+import RenameGroupButton from './RenameGroupButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -142,29 +144,12 @@ export default async function GroupPage({
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted">
             Members
           </h2>
-          <Card className="divide-y divide-edge">
-            {members.map((member) => (
-              <div key={member.profileId} className="flex items-center gap-3 p-4">
-                <Avatar name={member.displayName} url={member.avatarUrl} size={36} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">
-                    {member.displayName}
-                    {member.profileId === profile.id && (
-                      <span className="ml-1.5 text-muted">(you)</span>
-                    )}
-                  </p>
-                  {member.isPlaceholder && (
-                    <p className="text-xs text-muted">Hasn&rsquo;t signed up yet</p>
-                  )}
-                </div>
-                {member.role === 'admin' && (
-                  <span className="rounded-full bg-accent/10 px-2.5 py-1 text-xs font-medium text-accent">
-                    Admin
-                  </span>
-                )}
-              </div>
-            ))}
-          </Card>
+          <MemberList
+            groupId={id}
+            members={members}
+            currentProfileId={profile.id}
+            isAdmin={isAdmin}
+          />
 
           <AddMemberButton groupId={id} friends={addableFriends} />
 
@@ -182,6 +167,11 @@ export default async function GroupPage({
             <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted">
               Group settings
             </h2>
+            <RenameGroupButton
+              groupId={id}
+              currentName={group.name}
+              currentLabel={group.label}
+            />
             <DeleteGroupButton
               groupId={id}
               groupName={group.name}

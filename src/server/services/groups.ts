@@ -9,6 +9,7 @@
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { requireProfile } from './session'
+import { getOverview, outstandingInGroup } from './overview'
 
 /**
  * No currency here on purpose. A group holds expenses in any number of
@@ -52,6 +53,38 @@ export async function createGroup(input: CreateGroupInput): Promise<string> {
 
   if (error) throw new Error(error.message)
   return data as string
+}
+
+export const updateGroupSchema = z.object({
+  name: z.string().trim().min(1, 'Give the group a name').max(80),
+  label: z.string().trim().max(60).nullable().optional(),
+})
+
+export type UpdateGroupInput = z.infer<typeof updateGroupSchema>
+
+/**
+ * Rename a group, or change its label.
+ *
+ * Admin-only, enforced by the `groups_update` policy rather than here — a
+ * non-admin's update matches no rows and is reported rather than silently
+ * appearing to work.
+ */
+export async function updateGroup(groupId: string, input: UpdateGroupInput): Promise<void> {
+  z.string().uuid().parse(groupId)
+  const parsed = updateGroupSchema.parse(input)
+  await requireProfile()
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('groups')
+    .update({ name: parsed.name, label: parsed.label || null })
+    .eq('id', groupId)
+    .select('id')
+
+  if (error) throw new Error(error.message)
+  if (!data || data.length === 0) {
+    throw new Error('Only a group admin can rename this group')
+  }
 }
 
 /**
@@ -185,6 +218,84 @@ export async function addGroupMember(groupId: string, profileId: string): Promis
 
   if (error) throw new Error(error.message)
   return data as string
+}
+
+/**
+ * Take someone out of a group, or leave it yourself.
+ *
+ * `left_at` rather than a delete: their expenses stay, the history stays
+ * readable, and the balance that came from them is not silently rewritten.
+ *
+ * Refused while they still owe or are owed anything here. The check lives in
+ * the service rather than in SQL so the money maths stays in `src/core` where
+ * it is tested — this is a guard against an honest mistake, not a security
+ * boundary, and RLS is what actually decides who may write the row.
+ */
+export async function removeGroupMember(groupId: string, profileId: string): Promise<void> {
+  const parsed = z
+    .object({ groupId: z.string().uuid(), profileId: z.string().uuid() })
+    .parse({ groupId, profileId })
+
+  const me = await requireProfile()
+  const supabase = await createClient()
+
+  const overview = await getOverview(me.id)
+  const outstanding = outstandingInGroup(overview, parsed.profileId, parsed.groupId)
+  if (outstanding.size > 0) {
+    const leaving = parsed.profileId === me.id
+    throw new Error(
+      leaving
+        ? 'Settle up in this group before you leave it'
+        : 'They still have an unsettled balance in this group'
+    )
+  }
+
+  // The group must not be left without an admin. Promoting the longest-standing
+  // member is kinder than refusing: the alternative is a group nobody can
+  // rename or delete, reachable only by leaving in the wrong order.
+  const { data: members, error: membersError } = await supabase
+    .from('group_members')
+    .select('profile_id, role, joined_at')
+    .eq('group_id', parsed.groupId)
+    .is('left_at', null)
+    .order('joined_at')
+
+  if (membersError) throw new Error(membersError.message)
+
+  const remaining = (members ?? []).filter((m) => m.profile_id !== parsed.profileId)
+  const leavingIsAdmin = (members ?? []).some(
+    (m) => m.profile_id === parsed.profileId && m.role === 'admin'
+  )
+  const anotherAdminRemains = remaining.some((m) => m.role === 'admin')
+
+  if (leavingIsAdmin && !anotherAdminRemains && remaining.length > 0) {
+    const { error: promoteError } = await supabase
+      .from('group_members')
+      .update({ role: 'admin' })
+      .eq('group_id', parsed.groupId)
+      .eq('profile_id', remaining[0].profile_id)
+
+    if (promoteError) throw new Error(promoteError.message)
+  }
+
+  const { data, error } = await supabase
+    .from('group_members')
+    .update({ left_at: new Date().toISOString() })
+    .eq('group_id', parsed.groupId)
+    .eq('profile_id', parsed.profileId)
+    .is('left_at', null)
+    .select('id')
+
+  if (error) throw new Error(error.message)
+  if (!data || data.length === 0) {
+    throw new Error('Only a group admin can remove someone else')
+  }
+}
+
+/** Leave a group yourself. Allowed without being an admin. */
+export async function leaveGroup(groupId: string): Promise<void> {
+  const me = await requireProfile()
+  await removeGroupMember(groupId, me.id)
 }
 
 export interface GroupContents {

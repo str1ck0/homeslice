@@ -5,6 +5,7 @@ import { listFriends } from '@/server/services/friends'
 import { listExpensesWithPerson } from '@/server/services/expenses'
 import { debtLinesWith, getOverview, totalWith } from '@/server/services/overview'
 import { Avatar, Card, CurrencyTotals, DebtBreakdown, EmptyState, ExpenseRow } from '@/components/ui'
+import RemoveFriendButton from './RemoveFriendButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -91,6 +92,8 @@ export default async function FriendPage({ params }: { params: Promise<{ id: str
           </ul>
         )}
       </section>
+
+      <RemoveFriendButton profileId={friend.profileId} displayName={friend.displayName} />
     </div>
   )
 }

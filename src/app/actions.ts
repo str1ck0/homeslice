@@ -17,7 +17,12 @@ import {
   addPlaceholderMember,
   addGroupMember,
   deleteGroup,
+  updateGroup,
+  removeGroupMember,
+  leaveGroup,
+  type UpdateGroupInput,
 } from '@/server/services/groups'
+import { updateProfile, type UpdateProfileInput } from '@/server/services/profile'
 import {
   createExpense,
   deleteExpense,
@@ -25,7 +30,7 @@ import {
   type ExpenseInput,
 } from '@/server/services/expenses'
 import { recordSettlement, type SettlementInput } from '@/server/services/settlements'
-import { addFriend, setUsername } from '@/server/services/friends'
+import { addFriend, setUsername, removeFriend } from '@/server/services/friends'
 
 export interface ActionResult {
   ok: boolean
@@ -98,6 +103,69 @@ export async function addGroupMemberAction(
     await addGroupMember(groupId, profileId)
     revalidatePath(`/groups/${groupId}`)
     revalidatePath('/expenses/new')
+    return { ok: true }
+  } catch (error) {
+    return toResult(error)
+  }
+}
+
+export async function updateGroupAction(
+  groupId: string,
+  input: UpdateGroupInput
+): Promise<ActionResult> {
+  try {
+    await updateGroup(groupId, input)
+    revalidatePath(`/groups/${groupId}`)
+    revalidatePath('/groups')
+    revalidatePath('/dashboard')
+    return { ok: true }
+  } catch (error) {
+    return toResult(error)
+  }
+}
+
+export async function removeGroupMemberAction(
+  groupId: string,
+  profileId: string
+): Promise<ActionResult> {
+  try {
+    await removeGroupMember(groupId, profileId)
+    revalidatePath(`/groups/${groupId}`)
+    return { ok: true }
+  } catch (error) {
+    return toResult(error)
+  }
+}
+
+export async function leaveGroupAction(groupId: string): Promise<ActionResult> {
+  try {
+    await leaveGroup(groupId)
+  } catch (error) {
+    return toResult(error)
+  }
+
+  revalidatePath('/groups')
+  revalidatePath('/dashboard')
+  redirect('/groups?left=1')
+}
+
+export async function removeFriendAction(profileId: string): Promise<ActionResult> {
+  try {
+    await removeFriend(profileId)
+  } catch (error) {
+    return toResult(error)
+  }
+
+  revalidatePath('/friends')
+  revalidatePath('/dashboard')
+  redirect('/friends?removed=1')
+}
+
+export async function updateProfileAction(input: UpdateProfileInput): Promise<ActionResult> {
+  try {
+    await updateProfile(input)
+    revalidatePath('/account')
+    revalidatePath('/dashboard')
     return { ok: true }
   } catch (error) {
     return toResult(error)

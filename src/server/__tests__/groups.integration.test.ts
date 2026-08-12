@@ -288,6 +288,174 @@ describeIntegration('group membership and deletion', () => {
     })
   })
 
+  describe('correcting mistakes', () => {
+    it('renames a group as an admin, and returns the row', async () => {
+      const groupId = await newGroup('Typo Grp')
+
+      const { data, error } = await owner.client
+        .from('groups')
+        .update({ name: 'Euro 2026', label: 'Trip' })
+        .eq('id', groupId)
+        .select('id, name')
+
+      expect(error).toBeNull()
+      expect(data).toHaveLength(1)
+      expect(data![0].name).toBe('Euro 2026')
+    })
+
+    it('refuses a rename from a non-admin member, changing nothing', async () => {
+      const groupId = await newGroup('Owner Named')
+      await owner.client.rpc('add_group_member', {
+        p_group_id: groupId,
+        p_profile_id: friend.profileId,
+      })
+
+      const { data } = await friend.client
+        .from('groups')
+        .update({ name: 'Hijacked' })
+        .eq('id', groupId)
+        .select('id')
+
+      expect(data ?? []).toEqual([])
+
+      const { data: still } = await admin!.from('groups').select('name').eq('id', groupId).single()
+      expect(still!.name).toBe('Owner Named')
+    })
+
+    it('lets an admin remove a member by setting left_at', async () => {
+      const groupId = await newGroup('Remove Me')
+      await owner.client.rpc('add_group_member', {
+        p_group_id: groupId,
+        p_profile_id: friend.profileId,
+      })
+
+      const { data, error } = await owner.client
+        .from('group_members')
+        .update({ left_at: new Date().toISOString() })
+        .eq('group_id', groupId)
+        .eq('profile_id', friend.profileId)
+        .is('left_at', null)
+        .select('id')
+
+      expect(error).toBeNull()
+      expect(data).toHaveLength(1)
+    })
+
+    it('hides the group from someone who has left', async () => {
+      const groupId = await newGroup('Left Behind')
+      await owner.client.rpc('add_group_member', {
+        p_group_id: groupId,
+        p_profile_id: friend.profileId,
+      })
+
+      const { data: before } = await friend.client.from('groups').select('id').eq('id', groupId)
+      expect(before).toHaveLength(1)
+
+      await friend.client
+        .from('group_members')
+        .update({ left_at: new Date().toISOString() })
+        .eq('group_id', groupId)
+        .eq('profile_id', friend.profileId)
+
+      // my_group_ids() filters on left_at, so leaving really does revoke access
+      // rather than just hiding a row in the members list.
+      const { data: after } = await friend.client.from('groups').select('id').eq('id', groupId)
+      expect(after ?? []).toEqual([])
+    })
+
+    it('lets a member leave on their own without being an admin', async () => {
+      const groupId = await newGroup('Self Exit')
+      await owner.client.rpc('add_group_member', {
+        p_group_id: groupId,
+        p_profile_id: friend.profileId,
+      })
+
+      const { data, error } = await friend.client
+        .from('group_members')
+        .update({ left_at: new Date().toISOString() })
+        .eq('group_id', groupId)
+        .eq('profile_id', friend.profileId)
+        .is('left_at', null)
+        .select('id')
+
+      expect(error).toBeNull()
+      expect(data).toHaveLength(1)
+    })
+
+    it('stops a member removing somebody else', async () => {
+      const groupId = await newGroup('No Kicking')
+      await owner.client.rpc('add_group_member', {
+        p_group_id: groupId,
+        p_profile_id: friend.profileId,
+      })
+
+      const { data } = await friend.client
+        .from('group_members')
+        .update({ left_at: new Date().toISOString() })
+        .eq('group_id', groupId)
+        .eq('profile_id', owner.profileId)
+        .select('id')
+
+      expect(data ?? []).toEqual([])
+
+      const { data: still } = await admin!
+        .from('group_members')
+        .select('left_at')
+        .eq('group_id', groupId)
+        .eq('profile_id', owner.profileId)
+        .single()
+      expect(still!.left_at).toBeNull()
+    })
+
+    it('updates your own profile and returns the row', async () => {
+      const { data, error } = await owner.client
+        .from('profiles')
+        .update({ display_name: 'Renamed Owner', default_currency: 'EUR' })
+        .eq('id', owner.profileId)
+        .select('id, display_name, default_currency')
+
+      expect(error).toBeNull()
+      expect(data).toHaveLength(1)
+      expect(data![0].display_name).toBe('Renamed Owner')
+      expect(data![0].default_currency).toBe('EUR')
+    })
+
+    it("stops you editing somebody else's profile", async () => {
+      const { data } = await owner.client
+        .from('profiles')
+        .update({ display_name: 'Vandalised' })
+        .eq('id', stranger.profileId)
+        .select('id')
+
+      expect(data ?? []).toEqual([])
+
+      const { data: still } = await admin!
+        .from('profiles')
+        .select('display_name')
+        .eq('id', stranger.profileId)
+        .single()
+      expect(still!.display_name).not.toBe('Vandalised')
+    })
+
+    it('removes a friendship, leaving both profiles intact', async () => {
+      const { data: deleted, error } = await owner.client
+        .from('friendships')
+        .delete()
+        .eq('profile_a', owner.profileId < friend.profileId ? owner.profileId : friend.profileId)
+        .eq('profile_b', owner.profileId < friend.profileId ? friend.profileId : owner.profileId)
+        .select('id')
+
+      expect(error).toBeNull()
+      expect(deleted).toHaveLength(1)
+
+      const { data: profiles } = await admin!
+        .from('profiles')
+        .select('id')
+        .in('id', [owner.profileId, friend.profileId])
+      expect(profiles).toHaveLength(2)
+    })
+  })
+
   describe('multiple currencies in one group', () => {
     it('accepts expenses in different currencies in the same group', async () => {
       const groupId = await newGroup('Three Countries')

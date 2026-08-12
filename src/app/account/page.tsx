@@ -3,6 +3,7 @@ import { getCurrentProfile } from '@/server/services/session'
 import { Avatar, Card, PageShell } from '@/components/ui'
 import SignOutButton from './SignOutButton'
 import UsernameField from './UsernameField'
+import ProfileFields from './ProfileFields'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,10 +23,10 @@ export default async function AccountPage() {
 
       <Card className="mt-3 divide-y divide-edge">
         <UsernameField current={profile.username} />
-        <div className="flex items-center justify-between p-4">
-          <span className="text-sm text-muted">Default currency</span>
-          <span className="text-sm font-medium">{profile.default_currency}</span>
-        </div>
+        <ProfileFields
+          displayName={profile.display_name}
+          defaultCurrency={profile.default_currency}
+        />
       </Card>
 
       {!profile.username && (

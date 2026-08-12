@@ -38,25 +38,29 @@ The core Splitwise loop is done and has been used by two real people.
 - **Contacts picker.** `navigator.contacts` is Chrome-on-Android only; Safari
   has never shipped it, so on iOS it would be a button that does nothing.
 
-## Next up — everything here is "you cannot undo a mistake"
+## Undo — done
 
-Daily use is blocked less by missing features than by the fact that nothing
-structural can be corrected once entered. Deleting a group was one of these and
-is now fixed; the rest are the same shape and should go together.
+Daily use was blocked less by missing features than by the fact that nothing
+structural could be corrected once entered. That whole cluster is now closed:
+groups can be **renamed** and **deleted**, members **removed**, groups **left**,
+friends **removed**, and your **display name and default currency** edited.
 
-1. **Remove a member from a group, and leave a group yourself.** `left_at`
-   exists on `group_members` and is read everywhere; nothing ever writes it. Add
-   the wrong person — or a typo'd placeholder — and they are in that group
-   permanently.
-2. **Rename a group.** No update path exists at all. "Euro 26" versus
-   "Euro 2026" has to be fixed by deleting and starting over.
-3. **Edit your profile.** Account shows your default currency as plain text and
-   offers no way to change it, nor your display name, nor an avatar. Wrong
-   default currency means every new expense starts wrong.
-4. **Remove a friend.** `friendships` rows are only ever inserted.
-5. **Search and filter** on expenses — the first thing that hurts once a group
+Removing anyone is refused while they are unsettled, in that group or with you.
+That check lives in the service layer, not in SQL, so the money maths stays in
+`src/core` where it is tested — it is a guard against an honest mistake, and RLS
+is what actually decides who may write the row. Removal sets `left_at` rather
+than deleting: expenses and the balances that came from them survive.
+
+Leaving as the last admin promotes the longest-standing remaining member, so a
+group can never end up with nobody able to rename or delete it.
+
+## Next up
+
+1. **Search and filter** on expenses — the first thing that hurts once a group
    has fifty of them.
-6. **Hide settled-up friends and groups** behind a "show N settled" toggle.
+2. **Hide settled-up friends and groups** behind a "show N settled" toggle.
+3. **Avatars.** `avatar_url` is read everywhere and written nowhere; everyone is
+   initials. Needs an upload path like the one receipts already use.
 
 Then, in rough order: **user-created categories** · a **debt-simplification
 toggle** (`groups.simplify_debts` is read at settle-up time but nothing sets it)
@@ -129,9 +133,14 @@ landed on the old app.
 
 ## Accounts
 
-Four real logins exist: `liam.strickland96@gmail.com` (@stricko),
-`lisbethpurrucker@gmail.com` (@lizzardwizzard), `howzit@gooi.me` (Kiki),
-`bookings@wezlew.com` (Wezlew). Profiles were backfilled after the rebuild.
+Four real logins exist: `liam.strickland96@gmail.com`, `lisbethpurrucker@gmail.com`,
+`howzit@gooi.me`, `bookings@wezlew.com`, with display names stricko,
+lizzardwizzard, Kiki and Wezlew. Profiles were backfilled after the rebuild.
+
+**Nobody has actually claimed a username** — all four `username` columns are
+null, and "stricko" and "lizzardwizzard" are display names. Earlier versions of
+this doc said otherwise. It matters because adding a friend by username is the
+advertised primary path, so in practice everyone is using email.
 
 There are currently **no groups** — the nineteen accidental "Euro 26" duplicates
 were deleted on 12 August. Two non-group expenses exist between @stricko and
