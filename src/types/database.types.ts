@@ -856,6 +856,10 @@ export type Database = {
         Args: { p_display_name?: string; p_identifier: string }
         Returns: string
       }
+      add_group_member: {
+        Args: { p_group_id: string; p_profile_id: string }
+        Returns: string
+      }
       add_placeholder_member: {
         Args: { p_display_name: string; p_email?: string; p_group_id: string }
         Returns: string

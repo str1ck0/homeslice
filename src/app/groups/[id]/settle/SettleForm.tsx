@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { recordSettlementAction } from '@/app/actions'
@@ -56,6 +56,7 @@ export default function SettleForm({
   const [currency, setCurrency] = useState(first?.currency ?? defaultCurrency)
   const [method, setMethod] = useState('')
   const [busy, setBusy] = useState(false)
+  const submitting = useRef(false)
   const [error, setError] = useState<string | null>(null)
 
   function applySuggestion(suggestion: Suggestion) {
@@ -67,6 +68,12 @@ export default function SettleForm({
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
+
+    // A ref, because setBusy is asynchronous: a second submit fired before
+    // React re-renders reads the stale value and records the payment twice.
+    if (submitting.current) return
+    submitting.current = true
+
     setBusy(true)
     setError(null)
 
@@ -80,13 +87,14 @@ export default function SettleForm({
       note: null,
     })
 
-    setBusy(false)
-
     if (!result.ok) {
       setError(result.error ?? 'Could not record that payment')
+      setBusy(false)
+      submitting.current = false
       return
     }
 
+    // Still busy on purpose — the navigation below has only been started.
     router.push(backHref ?? (groupId ? `/groups/${groupId}` : '/friends'))
     router.refresh()
   }

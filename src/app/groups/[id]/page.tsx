@@ -1,27 +1,52 @@
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { getCurrentProfile } from '@/server/services/session'
-import { getGroup, getGroupMembers } from '@/server/services/groups'
+import { getGroup, getGroupContents, getGroupMembers } from '@/server/services/groups'
+import { listFriends } from '@/server/services/friends'
 import { debtLinesInGroup, getOverview, sumLines } from '@/server/services/overview'
 import { listExpenses } from '@/server/services/expenses'
 import { Avatar, Card, CurrencyTotals, DebtBreakdown, EmptyState, ExpenseRow } from '@/components/ui'
-import AddPersonButton from './AddPersonButton'
+import AddMemberButton from './AddMemberButton'
+import DeleteGroupButton from './DeleteGroupButton'
 
 export const dynamic = 'force-dynamic'
 
-export default async function GroupPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function GroupPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ created?: string }>
+}) {
   const { id } = await params
+  const { created } = await searchParams
   const profile = await getCurrentProfile()
   if (!profile) redirect('/auth')
 
   const group = await getGroup(id).catch(() => null)
   if (!group) notFound()
 
-  const [members, overview, expenses] = await Promise.all([
+  const [members, overview, expenses, friends, contents] = await Promise.all([
     getGroupMembers(id),
     getOverview(profile.id),
     listExpenses(id, profile.id),
+    listFriends(),
+    getGroupContents(id),
   ])
+
+  const memberIds = new Set(members.map((member) => member.profileId))
+  const addableFriends = friends
+    .filter((friend) => !memberIds.has(friend.profileId))
+    .map((friend) => ({
+      profileId: friend.profileId,
+      displayName: friend.displayName,
+      username: friend.username,
+      isPlaceholder: friend.isPlaceholder,
+    }))
+
+  const isAdmin = members.some(
+    (member) => member.profileId === profile.id && member.role === 'admin'
+  )
 
   // Scoped to this group, so a debt from elsewhere never leaks in here.
   const lines = debtLinesInGroup(overview, profile.id, id)
@@ -47,6 +72,15 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
       </header>
 
       <main className="flex flex-1 flex-col gap-6 px-5">
+        {created && (
+          <p
+            role="status"
+            className="rounded-xl bg-positive/10 px-4 py-3 text-sm font-medium text-positive"
+          >
+            Group created. Add an expense or invite people below.
+          </p>
+        )}
+
         {totals.size === 0 ? (
           <Card className="p-5">
             <p className="text-sm text-muted">You&rsquo;re all square in this group.</p>
@@ -132,7 +166,7 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
             ))}
           </Card>
 
-          <AddPersonButton groupId={id} />
+          <AddMemberButton groupId={id} friends={addableFriends} />
 
           <Card className="mt-3 p-4">
             <p className="text-sm font-medium">Invite someone</p>
@@ -142,6 +176,20 @@ export default async function GroupPage({ params }: { params: Promise<{ id: stri
             </p>
           </Card>
         </section>
+
+        {isAdmin && (
+          <section>
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted">
+              Group settings
+            </h2>
+            <DeleteGroupButton
+              groupId={id}
+              groupName={group.name}
+              expenseCount={contents.expenseCount}
+              settlementCount={contents.settlementCount}
+            />
+          </section>
+        )}
       </main>
     </div>
   )

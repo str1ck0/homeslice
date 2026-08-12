@@ -1,9 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import Link from 'next/link'
 import { createGroupAction, joinGroupAction } from '@/app/actions'
-import { CURRENCY_CODES } from '@/core/currencies'
 
 /**
  * Suggestions, not a fixed list. The label is free text — someone can type
@@ -16,14 +15,28 @@ export default function NewGroupPage() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [label, setLabel] = useState('')
+  const submitting = useRef(false)
 
   async function submit(action: (data: FormData) => Promise<{ ok: boolean; error?: string }>, form: FormData) {
+    // A ref, not the busy state: setBusy is asynchronous, so a second submit
+    // fired before React re-renders still reads the old value and gets through.
+    // Double-clicking Create really did make two groups until this was a ref.
+    if (submitting.current) return
+    submitting.current = true
+
     setBusy(true)
     setError(null)
     const result = await action(form)
-    // A successful action redirects, so reaching here means it failed.
-    if (result && !result.ok) setError(result.error ?? 'That did not work')
-    setBusy(false)
+
+    // Only re-enable on failure. A successful action redirects, and the
+    // redirect merely *starts* when the promise settles — clearing busy here
+    // put "Create group" back under the cursor while the new page was still
+    // loading, so a second press made a second group.
+    if (result && !result.ok) {
+      setError(result.error ?? 'That did not work')
+      setBusy(false)
+      submitting.current = false
+    }
   }
 
   return (
@@ -94,20 +107,10 @@ export default function NewGroupPage() {
             </p>
           </div>
 
-          <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium">Currency</span>
-            <select
-              name="currency"
-              defaultValue="ZAR"
-              className="rounded-xl border border-edge bg-raised px-4 py-3 text-base outline-none focus:border-accent"
-            >
-              {CURRENCY_CODES.map((code) => (
-                <option key={code} value={code}>
-                  {code}
-                </option>
-              ))}
-            </select>
-          </label>
+          <p className="rounded-xl bg-raised px-4 py-3 text-xs text-muted">
+            No currency to pick — each expense carries its own, so one group can
+            run across as many countries as your trip does.
+          </p>
 
           <button
             type="submit"

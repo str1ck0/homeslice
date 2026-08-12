@@ -11,7 +11,13 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { z } from 'zod'
-import { createGroup, joinGroupByCode, addPlaceholderMember } from '@/server/services/groups'
+import {
+  createGroup,
+  joinGroupByCode,
+  addPlaceholderMember,
+  addGroupMember,
+  deleteGroup,
+} from '@/server/services/groups'
 import {
   createExpense,
   deleteExpense,
@@ -45,7 +51,6 @@ export async function createGroupAction(formData: FormData): Promise<ActionResul
       name: String(formData.get('name') ?? ''),
       label: String(formData.get('label') ?? '') || null,
       icon: String(formData.get('icon') ?? '') || null,
-      currency: String(formData.get('currency') ?? 'ZAR'),
       address: String(formData.get('address') ?? '') || null,
     })
   } catch (error) {
@@ -53,7 +58,10 @@ export async function createGroupAction(formData: FormData): Promise<ActionResul
   }
 
   revalidatePath('/dashboard')
-  redirect(`/groups/${groupId}`)
+  // ?created=1 is what the group page uses to confirm it worked. Without it a
+  // successful create looked identical to nothing happening, which is how you
+  // end up with six groups of the same name.
+  redirect(`/groups/${groupId}?created=1`)
 }
 
 export async function joinGroupAction(formData: FormData): Promise<ActionResult> {
@@ -80,6 +88,35 @@ export async function addPlaceholderAction(
   } catch (error) {
     return toResult(error)
   }
+}
+
+export async function addGroupMemberAction(
+  groupId: string,
+  profileId: string
+): Promise<ActionResult> {
+  try {
+    await addGroupMember(groupId, profileId)
+    revalidatePath(`/groups/${groupId}`)
+    revalidatePath('/expenses/new')
+    return { ok: true }
+  } catch (error) {
+    return toResult(error)
+  }
+}
+
+export async function deleteGroupAction(groupId: string): Promise<ActionResult> {
+  let name: string
+  try {
+    name = await deleteGroup(groupId)
+  } catch (error) {
+    return toResult(error)
+  }
+
+  revalidatePath('/dashboard')
+  revalidatePath('/groups')
+  // Back to the group list, which is where you were: it is the only place in
+  // the app that links to a group page, so it is always where you came from.
+  redirect(`/groups?deleted=${encodeURIComponent(name)}`)
 }
 
 export async function createExpenseAction(input: ExpenseInput): Promise<ActionResult> {

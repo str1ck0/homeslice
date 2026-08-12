@@ -14,7 +14,12 @@ import {
 
 export const dynamic = 'force-dynamic'
 
-export default async function GroupsPage() {
+export default async function GroupsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ deleted?: string }>
+}) {
+  const { deleted } = await searchParams
   const profile = await getCurrentProfile()
   if (!profile) redirect('/auth')
 
@@ -42,6 +47,15 @@ export default async function GroupsPage() {
         </Link>
       }
     >
+      {deleted && (
+        <p
+          role="status"
+          className="mb-5 rounded-xl bg-positive/10 px-4 py-3 text-sm font-medium text-positive"
+        >
+          {deleted === '1' ? 'Group deleted.' : `“${deleted}” deleted.`}
+        </p>
+      )}
+
       {overview.overall.size > 0 && (
         <p className="mb-5 text-lg font-semibold text-balance">
           Overall, {owed ? "you're owed" : 'you owe'}{' '}

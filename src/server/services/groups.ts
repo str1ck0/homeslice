@@ -10,11 +10,16 @@ import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { requireProfile } from './session'
 
+/**
+ * No currency here on purpose. A group holds expenses in any number of
+ * currencies — a trip through three countries is one group, not three — and
+ * balances are already reported per currency. The group's own `currency`
+ * column survives only as the starting suggestion for its next expense.
+ */
 export const createGroupSchema = z.object({
   name: z.string().trim().min(1, 'Give the group a name').max(80),
   label: z.string().trim().max(60).optional().nullable(),
   icon: z.string().trim().max(16).optional().nullable(),
-  currency: z.string().length(3).default('ZAR'),
   address: z.string().trim().max(200).optional().nullable(),
 })
 
@@ -33,19 +38,44 @@ export interface GroupSummary {
 
 export async function createGroup(input: CreateGroupInput): Promise<string> {
   const parsed = createGroupSchema.parse(input)
-  await requireProfile()
+  const me = await requireProfile()
   const supabase = await createClient()
 
   const { data, error } = await supabase.rpc('create_group', {
     p_name: parsed.name,
     p_label: parsed.label ?? null,
     p_icon: parsed.icon ?? null,
-    p_currency: parsed.currency,
+    // Whatever you normally spend in, as the first suggestion only.
+    p_currency: me.default_currency,
     p_address: parsed.address ?? null,
   } as never)
 
   if (error) throw new Error(error.message)
   return data as string
+}
+
+/**
+ * The currency to start the next expense in for this group: whatever was last
+ * used here, falling back to your own default.
+ *
+ * This is what makes a multi-country trip bearable. Land in Portugal, add one
+ * euro expense, and every expense after it starts in euros instead of snapping
+ * back to the currency you happened to create the group in.
+ */
+export async function suggestGroupCurrency(groupId: string): Promise<string | null> {
+  const supabase = await createClient()
+
+  const { data } = await supabase
+    .from('expenses')
+    .select('currency')
+    .eq('group_id', groupId)
+    .is('deleted_at', null)
+    .order('expense_date', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  return data?.currency ?? null
 }
 
 export async function joinGroupByCode(code: string): Promise<string> {
@@ -130,6 +160,92 @@ export async function getGroup(groupId: string) {
 
   if (error) throw new Error(error.message)
   return data
+}
+
+/**
+ * Add someone you already know to a group — a friend, or a placeholder you
+ * created elsewhere. They keep their identity and their history, which is the
+ * whole point of not making a fresh placeholder every time.
+ */
+export async function addGroupMember(groupId: string, profileId: string): Promise<string> {
+  const parsed = z
+    .object({
+      groupId: z.string().uuid(),
+      profileId: z.string().uuid(),
+    })
+    .parse({ groupId, profileId })
+
+  await requireProfile()
+  const supabase = await createClient()
+
+  const { data, error } = await supabase.rpc('add_group_member', {
+    p_group_id: parsed.groupId,
+    p_profile_id: parsed.profileId,
+  } as never)
+
+  if (error) throw new Error(error.message)
+  return data as string
+}
+
+export interface GroupContents {
+  expenseCount: number
+  settlementCount: number
+}
+
+/**
+ * What deleting this group would destroy.
+ *
+ * Every child table cascades from `groups`, so a delete takes the expenses and
+ * settlements with it. The UI asks for the group's name typed out when this
+ * comes back non-empty, and only then.
+ */
+export async function getGroupContents(groupId: string): Promise<GroupContents> {
+  const supabase = await createClient()
+
+  const [expenses, settlements] = await Promise.all([
+    supabase
+      .from('expenses')
+      .select('id', { count: 'exact', head: true })
+      .eq('group_id', groupId)
+      .is('deleted_at', null),
+    supabase
+      .from('settlements')
+      .select('id', { count: 'exact', head: true })
+      .eq('group_id', groupId),
+  ])
+
+  return {
+    expenseCount: expenses.count ?? 0,
+    settlementCount: settlements.count ?? 0,
+  }
+}
+
+/**
+ * Delete a group outright, along with everything in it.
+ *
+ * Admin-only, enforced by the `groups_delete` policy rather than here — a
+ * non-admin's delete removes no rows and is reported as such rather than
+ * silently claiming success.
+ */
+export async function deleteGroup(groupId: string): Promise<string> {
+  z.string().uuid().parse(groupId)
+  await requireProfile()
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('groups')
+    .delete()
+    .eq('id', groupId)
+    .select('id, name')
+
+  if (error) throw new Error(error.message)
+  if (!data || data.length === 0) {
+    throw new Error('Only a group admin can delete this group')
+  }
+
+  // The name comes back from the deleted row so the dashboard can say which
+  // group went — by the time it renders, there is nothing left to look up.
+  return data[0].name
 }
 
 /** Add someone who has not signed up. They can be split with immediately. */

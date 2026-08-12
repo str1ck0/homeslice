@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createExpenseAction, updateExpenseAction } from '@/app/actions'
@@ -92,6 +92,8 @@ export default function ExpenseForm({
   const [description, setDescription] = useState(editing?.description ?? '')
   const [amount, setAmount] = useState(editing?.amount ?? '')
   const [currency, setCurrency] = useState(editing?.currency ?? defaultCurrency)
+  // Once you have picked a currency by hand, switching group leaves it alone.
+  const [touchedCurrency, setTouchedCurrency] = useState(false)
   const [expenseDate, setExpenseDate] = useState(
     () => editing?.expenseDate ?? new Date().toISOString().slice(0, 10)
   )
@@ -106,6 +108,7 @@ export default function ExpenseForm({
   const [weights, setWeights] = useState<Record<string, string>>(editing?.weights ?? {})
   const [images, setImages] = useState<File[]>([])
   const [busy, setBusy] = useState(false)
+  const submitting = useRef(false)
   const [uploadStatus, setUploadStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -149,6 +152,12 @@ export default function ExpenseForm({
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
+
+    // A ref, because setBusy is asynchronous: a second submit fired before
+    // React re-renders reads the stale value and saves the expense twice.
+    if (submitting.current) return
+    submitting.current = true
+
     setBusy(true)
     setError(null)
 
@@ -187,15 +196,21 @@ export default function ExpenseForm({
 
       if (!result.ok) {
         setError(result.error ?? 'Could not save the expense')
+        setBusy(false)
+        submitting.current = false
         return
       }
 
+      // Deliberately still busy: the navigation below has only been asked for,
+      // not finished, and a button that comes back to life in the meantime is
+      // an invitation to save the same expense again.
       router.push(editing ? `/expenses/${editing.expenseId}` : groupId ? `/groups/${groupId}` : '/dashboard')
       router.refresh()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save the expense')
-    } finally {
       setBusy(false)
+      submitting.current = false
+    } finally {
       setUploadStatus(null)
     }
   }
@@ -243,8 +258,11 @@ export default function ExpenseForm({
           onChange={(event) => {
             setGroupId(event.target.value || null)
             setTouchedSelection(false)
+            // Suggest the group's usual currency, but never overrule a currency
+            // the user has already picked — on a trip through three countries
+            // that snapping back is the whole problem.
             const next = groups.find((g) => g.id === event.target.value)
-            if (next) setCurrency(next.currency)
+            if (next && !touchedCurrency) setCurrency(next.currency)
           }}
           className="rounded-xl border border-edge bg-raised px-4 py-3 text-base outline-none focus:border-accent disabled:opacity-60"
         >
@@ -285,7 +303,10 @@ export default function ExpenseForm({
           <span className="text-sm font-medium">Currency</span>
           <select
             value={currency}
-            onChange={(event) => setCurrency(event.target.value)}
+            onChange={(event) => {
+              setTouchedCurrency(true)
+              setCurrency(event.target.value)
+            }}
             className="rounded-xl border border-edge bg-raised px-3 py-3 text-base outline-none focus:border-accent"
           >
             {CURRENCY_CODES.map((code) => (
