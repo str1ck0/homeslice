@@ -19,9 +19,10 @@ import {
   updateGroup,
   removeGroupMember,
   leaveGroup,
+  setGroupAvatar,
   type UpdateGroupInput,
 } from '@/server/services/groups'
-import { updateProfile, type UpdateProfileInput } from '@/server/services/profile'
+import { updateProfile, setAvatar, type UpdateProfileInput } from '@/server/services/profile'
 import {
   createExpense,
   deleteExpense,
@@ -145,6 +146,32 @@ export async function removeFriendAction(profileId: string): Promise<ActionResul
   revalidatePath('/friends')
   revalidatePath('/dashboard')
   redirect('/friends?removed=1')
+}
+
+export async function setAvatarAction(url: string | null): Promise<ActionResult> {
+  try {
+    await setAvatar(url)
+    revalidatePath('/account')
+    revalidatePath('/dashboard')
+    revalidatePath('/friends')
+    return { ok: true }
+  } catch (error) {
+    return toResult(error)
+  }
+}
+
+export async function setGroupAvatarAction(
+  groupId: string,
+  url: string | null
+): Promise<ActionResult> {
+  try {
+    await setGroupAvatar(groupId, url)
+    revalidatePath(`/groups/${groupId}`)
+    revalidatePath('/groups')
+    return { ok: true }
+  } catch (error) {
+    return toResult(error)
+  }
 }
 
 export async function updateProfileAction(input: UpdateProfileInput): Promise<ActionResult> {

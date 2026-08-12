@@ -6,6 +6,8 @@ import { listFriends } from '@/server/services/friends'
 import { debtLinesInGroup, getOverview, sumLines } from '@/server/services/overview'
 import { listExpenses } from '@/server/services/expenses'
 import { Avatar, Card, CurrencyTotals, DebtBreakdown, EmptyState, ExpenseRow } from '@/components/ui'
+import AvatarPicker from '@/components/AvatarPicker'
+import { setGroupAvatarAction } from '@/app/actions'
 import AddMemberButton from './AddMemberButton'
 import DeleteGroupButton from './DeleteGroupButton'
 import MemberList from './MemberList'
@@ -169,6 +171,16 @@ export default async function GroupPage({
             <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted">
               Group settings
             </h2>
+            <div className="mb-3 rounded-2xl border border-edge p-4">
+              <AvatarPicker
+                name={group.name}
+                url={group.avatar_url}
+                size={56}
+                // Bound rather than wrapped in a closure: the group id is
+                // applied on the server, so the client never chooses it.
+                onSave={setGroupAvatarAction.bind(null, id)}
+              />
+            </div>
             <RenameGroupButton
               groupId={id}
               currentName={group.name}

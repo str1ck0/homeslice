@@ -10,6 +10,7 @@
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { requireProfile } from './session'
+import { deleteAvatarObject } from './avatars'
 
 export const updateProfileSchema = z.object({
   /**
@@ -23,6 +24,33 @@ export const updateProfileSchema = z.object({
 })
 
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>
+
+/**
+ * Set or clear your photo.
+ *
+ * Only the URL is stored. The file itself was uploaded from the browser
+ * straight to the `avatars` bucket, which is public to read and writable only
+ * under your own auth id — so the worst a forged URL here achieves is pointing
+ * your own avatar somewhere silly.
+ */
+export async function setAvatar(url: string | null): Promise<void> {
+  const parsed = url === null ? null : z.string().url().max(500).parse(url)
+  const me = await requireProfile()
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ avatar_url: parsed })
+    .eq('id', me.id)
+    .select('id')
+
+  if (error) throw new Error(error.message)
+  if (!data || data.length === 0) throw new Error('Could not save your photo')
+
+  // Only once the row points elsewhere, so a failed delete cannot orphan the
+  // row instead of the file.
+  if (me.avatar_url !== parsed) await deleteAvatarObject(me.avatar_url)
+}
 
 export async function updateProfile(input: UpdateProfileInput): Promise<void> {
   const parsed = updateProfileSchema.parse(input)

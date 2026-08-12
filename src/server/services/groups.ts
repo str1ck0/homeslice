@@ -10,6 +10,7 @@ import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { requireProfile } from './session'
 import { getOverview, outstandingInGroup } from './overview'
+import { deleteAvatarObject } from './avatars'
 
 /**
  * No currency here on purpose. A group holds expenses in any number of
@@ -85,6 +86,39 @@ export async function updateGroup(groupId: string, input: UpdateGroupInput): Pro
   if (!data || data.length === 0) {
     throw new Error('Only a group admin can rename this group')
   }
+}
+
+/**
+ * Set or clear a group's photo. Admin-only, like every other group edit —
+ * enforced by `groups_update` rather than here.
+ */
+export async function setGroupAvatar(groupId: string, url: string | null): Promise<void> {
+  z.string().uuid().parse(groupId)
+  const parsed = url === null ? null : z.string().url().max(500).parse(url)
+  await requireProfile()
+  const supabase = await createClient()
+
+  // Read the old URL before overwriting it, so the file it points at can be
+  // cleaned up afterwards.
+  const { data: before } = await supabase
+    .from('groups')
+    .select('avatar_url')
+    .eq('id', groupId)
+    .maybeSingle()
+
+  const { data, error } = await supabase
+    .from('groups')
+    .update({ avatar_url: parsed })
+    .eq('id', groupId)
+    .select('id')
+
+  if (error) throw new Error(error.message)
+  if (!data || data.length === 0) {
+    throw new Error('Only a group admin can change the group photo')
+  }
+
+  const previous = before?.avatar_url ?? null
+  if (previous && previous !== parsed) await deleteAvatarObject(previous)
 }
 
 /**

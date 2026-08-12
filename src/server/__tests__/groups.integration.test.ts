@@ -575,6 +575,77 @@ describeIntegration('group membership and deletion', () => {
     })
   })
 
+  describe('avatar storage', () => {
+    // A one-pixel JPEG is enough; this is about who may write where.
+    const pixel = Buffer.from(
+      '/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0a' +
+        'HBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAA' +
+        'AAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==',
+      'base64'
+    )
+    const uploadedPaths: string[] = []
+
+    afterAll(async () => {
+      if (!admin || uploadedPaths.length === 0) return
+      await admin.storage.from('avatars').remove(uploadedPaths)
+    })
+
+    it('lets you write inside your own folder', async () => {
+      const path = `${owner.authId}/${stamp}-mine.jpg`
+
+      const { error } = await owner.client.storage
+        .from('avatars')
+        .upload(path, pixel, { contentType: 'image/jpeg' })
+
+      expect(error).toBeNull()
+      uploadedPaths.push(path)
+    })
+
+    it('stops you writing into somebody else’s folder', async () => {
+      // The old policies were scoped to the bucket alone, so this succeeded and
+      // anyone could overwrite anyone's face.
+      const { error } = await owner.client.storage
+        .from('avatars')
+        .upload(`${stranger.authId}/${stamp}-intrusion.jpg`, pixel, {
+          contentType: 'image/jpeg',
+        })
+
+      expect(error).not.toBeNull()
+    })
+
+    it('stops you deleting somebody else’s avatar', async () => {
+      const victimPath = `${stranger.authId}/${stamp}-victim.jpg`
+      const { error: seedError } = await stranger.client.storage
+        .from('avatars')
+        .upload(victimPath, pixel, { contentType: 'image/jpeg' })
+      expect(seedError).toBeNull()
+      uploadedPaths.push(victimPath)
+
+      await owner.client.storage.from('avatars').remove([victimPath])
+
+      // remove() reports success even when the policy filtered the row out, so
+      // the assertion that matters is that the object is still there.
+      const { data: still } = await admin!.storage
+        .from('avatars')
+        .list(stranger.authId, { search: `${stamp}-victim.jpg` })
+
+      expect(still ?? []).toHaveLength(1)
+    })
+
+    it('is readable by anyone, which is what makes lists cheap', async () => {
+      const path = `${owner.authId}/${stamp}-public.jpg`
+      await owner.client.storage
+        .from('avatars')
+        .upload(path, pixel, { contentType: 'image/jpeg' })
+      uploadedPaths.push(path)
+
+      const { data } = owner.client.storage.from('avatars').getPublicUrl(path)
+      const response = await fetch(data.publicUrl)
+
+      expect(response.status).toBe(200)
+    })
+  })
+
   describe('multiple currencies in one group', () => {
     it('accepts expenses in different currencies in the same group', async () => {
       const groupId = await newGroup('Three Countries')

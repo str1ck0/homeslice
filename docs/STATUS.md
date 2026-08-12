@@ -32,6 +32,9 @@ The core Splitwise loop is done and has been used by two real people.
   ("you owe Sam R878.91 in Cape Town"). No currency conversion, ever.
 - **Settle up** — from a group or a friend, with the outstanding amount
   pre-filled.
+- **Photos** — people and groups have avatars, compressed and centre-cropped
+  square in the browser before upload. Expenses carry as many receipt photos as
+  you like. Replacing or removing a photo deletes the file it replaced.
 - **PWA** — installable, icons, safe-area handling, mobile-first bottom nav.
 
 ## What is deliberately not built
@@ -70,9 +73,6 @@ group can never end up with nobody able to rename or delete it.
 1. **Search and filter** on expenses — the first thing that hurts once a group
    has fifty of them.
 2. **Hide settled-up friends and groups** behind a "show N settled" toggle.
-3. **Avatars.** `avatar_url` is read everywhere and written nowhere; everyone is
-   initials. Needs an upload path like the one receipts already use.
-
 Then, in rough order: **user-created categories** · a **debt-simplification
 toggle** (`groups.simplify_debts` is read at settle-up time but nothing sets it)
 · **multi-payer UI** (the service handles it; the form offers one payer and
@@ -121,6 +121,18 @@ deliberately, because a repeat there is idempotent or harmless.
 **A successful Server Action that redirects has not navigated yet** when its
 promise settles. Leave the button disabled rather than restoring it, or it comes
 back to life over a page that is still loading.
+
+**Two image buckets, two different rules.** `receipts` is private: members read
+it through `/api/expense-images/[id]`, which checks access and mints a
+short-lived signed URL. `avatars` is public, because faces appear dozens to a
+page and a signed redirect per face would be a request each — paths are
+unguessable UUIDs under the uploader's auth id, and writes are restricted to
+your own folder. Before 12 August every avatar write policy was scoped to the
+bucket alone, so any signed-in user could overwrite or delete anyone's photo.
+
+**Seven orphaned files sit in `avatars`** from the pre-rebuild app — flat paths,
+plus a `notes/` and a `house-` prefix. Nothing references them. Left alone
+because they are yours to judge, not mine.
 
 **Applying migrations:** `./scripts/db-query.sh -f supabase/migrations/<file>.sql`.
 It reads the Supabase token from the macOS keychain, so there's no password
