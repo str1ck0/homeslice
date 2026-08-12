@@ -6,8 +6,9 @@ import { debtLinesInGroup, getOverview, sumLines } from '@/server/services/overv
 import {
   Avatar,
   Card,
-  CurrencyTotals,
+  BalanceSummary,
   DebtBreakdown,
+  PersonBalance,
   EmptyState,
   PageShell,
 } from '@/components/ui'
@@ -30,8 +31,6 @@ export default async function GroupsPage({
   // is the right answer: it is where people look for them.
   const nonGroupLines = debtLinesInGroup(overview, profile.id, null)
   const nonGroupTotals = sumLines(nonGroupLines)
-
-  const owed = [...overview.overall.values()].some((cents) => cents > 0)
 
   return (
     <PageShell
@@ -56,12 +55,7 @@ export default async function GroupsPage({
         </p>
       )}
 
-      {overview.overall.size > 0 && (
-        <p className="mb-5 text-lg font-semibold text-balance">
-          Overall, {owed ? "you're owed" : 'you owe'}{' '}
-          <CurrencyTotals totals={overview.overall} />
-        </p>
-      )}
+      {overview.overall.size > 0 && <BalanceSummary totals={overview.overall} className="mb-5" />}
 
       {groups.length === 0 && nonGroupTotals.size === 0 ? (
         <Card>
@@ -98,16 +92,11 @@ export default async function GroupsPage({
                         {group.memberCount} {group.memberCount === 1 ? 'member' : 'members'}
                       </p>
                     </div>
-                    <div className="text-right">
+                    <div className="shrink-0 text-right">
                       {totals.size === 0 ? (
                         <span className="text-sm text-muted">settled up</span>
                       ) : (
-                        <>
-                          <p className="text-xs text-muted">
-                            {[...totals.values()][0] > 0 ? "you're owed" : 'you owe'}
-                          </p>
-                          <CurrencyTotals totals={totals} className="amount font-semibold" />
-                        </>
+                        <PersonBalance totals={totals} owesYouLabel="you're owed" />
                       )}
                     </div>
                   </div>
@@ -131,11 +120,8 @@ export default async function GroupsPage({
                     <p className="truncate font-semibold">Non-group expenses</p>
                     <p className="truncate text-sm text-muted">Splits with no group</p>
                   </div>
-                  <div className="text-right">
-                    <p className="text-xs text-muted">
-                      {[...nonGroupTotals.values()][0] > 0 ? "you're owed" : 'you owe'}
-                    </p>
-                    <CurrencyTotals totals={nonGroupTotals} className="amount font-semibold" />
+                  <div className="shrink-0 text-right">
+                    <PersonBalance totals={nonGroupTotals} owesYouLabel="you're owed" />
                   </div>
                 </div>
                 <DebtBreakdown lines={nonGroupLines} className="mt-3" />

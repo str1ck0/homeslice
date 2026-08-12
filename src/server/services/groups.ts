@@ -214,6 +214,44 @@ export async function getGroupMembers(groupId: string): Promise<GroupMember[]> {
   })
 }
 
+/**
+ * Members of every group you are in, keyed by group.
+ *
+ * The expense form needs this because its group can now be changed without
+ * reloading the page: fetching only the group named in the URL meant picking a
+ * different one left the form insisting there was nobody to split with. One
+ * query rather than one per group, and RLS already limits it to your groups.
+ */
+export async function getMembersByGroup(): Promise<Record<string, GroupMember[]>> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('group_members')
+    .select('group_id, role, profile_id, profiles!inner(id, display_name, avatar_url)')
+    .is('left_at', null)
+    .order('joined_at')
+
+  if (error) throw new Error(error.message)
+
+  const byGroup: Record<string, GroupMember[]> = {}
+
+  for (const row of data ?? []) {
+    const profile = row.profiles as unknown as {
+      id: string
+      display_name: string
+      avatar_url: string | null
+    }
+    ;(byGroup[row.group_id] ??= []).push({
+      profileId: profile.id,
+      displayName: profile.display_name,
+      avatarUrl: profile.avatar_url,
+      role: row.role,
+    })
+  }
+
+  return byGroup
+}
+
 export async function getGroup(groupId: string) {
   const supabase = await createClient()
   const { data, error } = await supabase

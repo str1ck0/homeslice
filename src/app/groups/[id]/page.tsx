@@ -5,7 +5,7 @@ import { getGroup, getGroupContents, getGroupMembers } from '@/server/services/g
 import { listFriends } from '@/server/services/friends'
 import { debtLinesInGroup, getOverview, sumLines } from '@/server/services/overview'
 import { listExpenses } from '@/server/services/expenses'
-import { Avatar, Card, CurrencyTotals, DebtBreakdown, EmptyState, ExpenseRow } from '@/components/ui'
+import { Avatar, BalanceSummary, Card, DebtBreakdown, EmptyState, ExpenseRow } from '@/components/ui'
 import AvatarPicker from '@/components/AvatarPicker'
 import { setGroupAvatarAction } from '@/app/actions'
 import AddMemberButton from './AddMemberButton'
@@ -44,6 +44,7 @@ export default async function GroupPage({
     .map((friend) => ({
       profileId: friend.profileId,
       displayName: friend.displayName,
+      avatarUrl: friend.avatarUrl,
     }))
 
   const isAdmin = members.some(
@@ -53,7 +54,6 @@ export default async function GroupPage({
   // Scoped to this group, so a debt from elsewhere never leaks in here.
   const lines = debtLinesInGroup(overview, profile.id, id)
   const totals = sumLines(lines)
-  const owed = [...totals.values()].some((cents) => cents > 0)
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-lg flex-col pb-28">
@@ -89,10 +89,7 @@ export default async function GroupPage({
           </Card>
         ) : (
           <div>
-            <p className="text-lg font-semibold text-balance">
-              In this group, {owed ? "you're owed" : 'you owe'}{' '}
-              <CurrencyTotals totals={totals} />
-            </p>
+            <BalanceSummary totals={totals} />
             <DebtBreakdown lines={lines} className="mt-3" />
             <Link
               href={`/groups/${id}/settle`}

@@ -6,8 +6,9 @@ import { debtLinesWith, getOverview, totalWith } from '@/server/services/overvie
 import {
   Avatar,
   Card,
-  CurrencyTotals,
+  BalanceSummary,
   DebtBreakdown,
+  PersonBalance,
   EmptyState,
   PageShell,
 } from '@/components/ui'
@@ -39,8 +40,6 @@ export default async function FriendsPage({
     return aOpen - bOpen || a.friend.displayName.localeCompare(b.friend.displayName)
   })
 
-  const owed = [...overview.overall.values()].some((cents) => cents > 0)
-
   return (
     <PageShell
       title="Friends"
@@ -57,12 +56,7 @@ export default async function FriendsPage({
         </p>
       )}
 
-      {overview.overall.size > 0 && (
-        <p className="mb-5 text-lg font-semibold text-balance">
-          Overall, {owed ? "you're owed" : 'you owe'}{' '}
-          <CurrencyTotals totals={overview.overall} />
-        </p>
-      )}
+      {overview.overall.size > 0 && <BalanceSummary totals={overview.overall} className="mb-5" />}
 
       {friends.length === 0 ? (
         <Card>
@@ -85,16 +79,11 @@ export default async function FriendsPage({
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-semibold">{friend.displayName}</p>
                   </div>
-                  <div className="text-right">
+                  <div className="shrink-0 text-right">
                     {totals.size === 0 ? (
                       <span className="text-sm text-muted">settled up</span>
                     ) : (
-                      <>
-                        <p className="text-xs text-muted">
-                          {[...totals.values()][0] > 0 ? 'owes you' : 'you owe'}
-                        </p>
-                        <CurrencyTotals totals={totals} className="amount font-semibold" />
-                      </>
+                      <PersonBalance totals={totals} />
                     )}
                   </div>
                 </div>

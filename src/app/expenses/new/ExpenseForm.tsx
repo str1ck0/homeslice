@@ -44,7 +44,7 @@ export default function ExpenseForm({
   currentProfileAvatarUrl,
   initialGroupId,
   groups,
-  groupMembers,
+  membersByGroup,
   friends,
   defaultCurrency,
   categories,
@@ -55,7 +55,8 @@ export default function ExpenseForm({
   currentProfileAvatarUrl: string | null
   initialGroupId: string | null
   groups: (GroupOption & { currency: string })[]
-  groupMembers: Member[]
+  /** Members of every group you are in, so switching group needs no reload. */
+  membersByGroup: Record<string, Member[]>
   friends: Member[]
   defaultCurrency: string
   categories: { id: string; name: string }[]
@@ -79,12 +80,22 @@ export default function ExpenseForm({
   const [pickerOpen, setPickerOpen] = useState(!initialGroupId && !editing)
 
   /**
+   * Editing who an expense is between is fine — `update_expense` replaces the
+   * participant set wholesale. Moving it into or out of a group is not: the RPC
+   * takes no group id, and a group expense's cast is the group's membership
+   * anyway. So the control is only locked for expenses that already have one.
+   */
+  const withLocked = Boolean(editing) && Boolean(initialGroupId)
+
+  /**
    * Who can be split with. Inside a group that is its members; outside one it
    * is your friends. Either way you are always in the list, because an expense
    * you are not part of is not one you would be adding.
    */
   const members: Member[] = useMemo(() => {
-    const base = groupId ? groupMembers : friends.filter((f) => withIds.includes(f.id))
+    const base = groupId
+      ? (membersByGroup[groupId] ?? [])
+      : friends.filter((f) => withIds.includes(f.id))
     const withMe = base.some((m) => m.id === currentProfileId)
       ? base
       : [
@@ -94,7 +105,7 @@ export default function ExpenseForm({
     return withMe
   }, [
     groupId,
-    groupMembers,
+    membersByGroup,
     friends,
     withIds,
     currentProfileId,
@@ -265,22 +276,30 @@ export default function ExpenseForm({
         </p>
       )}
 
-      <button
-        type="button"
-        onClick={() => setPickerOpen(true)}
-        disabled={Boolean(editing)}
-        className="flex w-full items-center justify-between gap-3 rounded-xl border border-edge bg-raised px-4 py-3 text-left transition-colors hover:border-accent disabled:opacity-60"
-      >
-        <span className="min-w-0">
-          <span className="block text-xs text-muted">Split with</span>
-          <span className="block truncate text-base font-medium">{withSummary}</span>
-        </span>
-        {!editing && (
-          <span aria-hidden className="shrink-0 text-muted">
-            ›
+      <div className="flex flex-col gap-1.5">
+        <button
+          type="button"
+          onClick={() => setPickerOpen(true)}
+          disabled={withLocked}
+          className="flex w-full items-center justify-between gap-3 rounded-xl border border-edge bg-raised px-4 py-3 text-left transition-colors hover:border-accent disabled:opacity-60"
+        >
+          <span className="min-w-0">
+            <span className="block text-xs text-muted">Split with</span>
+            <span className="block truncate text-base font-medium">{withSummary}</span>
           </span>
+          {!withLocked && (
+            <span aria-hidden className="shrink-0 text-muted">
+              ›
+            </span>
+          )}
+        </button>
+        {withLocked && (
+          <p className="px-1 text-xs text-muted">
+            A group expense stays in its group. Use &ldquo;More options&rdquo; below to change
+            who shares it, or delete it and add it again elsewhere.
+          </p>
         )}
-      </button>
+      </div>
 
       <label className="flex flex-col gap-1.5">
         <span className="text-sm font-medium">What was it?</span>
@@ -294,35 +313,45 @@ export default function ExpenseForm({
         />
       </label>
 
-      <div className="flex gap-3">
-        <label className="flex flex-1 flex-col gap-1.5">
-          <span className="text-sm font-medium">Amount</span>
+      <div className="flex flex-col gap-1.5">
+        <span className="text-sm font-medium">Amount</span>
+        <div className="flex items-stretch overflow-hidden rounded-xl border border-edge bg-raised focus-within:border-accent">
+          {/* The code sits inside the field rather than beside it: it is a unit,
+              not a second question, and giving it its own box stole a third of
+              the row from the number that matters. */}
+          <div className="relative shrink-0 border-r border-edge">
+            <select
+              value={currency}
+              onChange={(event) => {
+                setTouchedCurrency(true)
+                setCurrency(event.target.value)
+              }}
+              aria-label="Currency"
+              className="h-14 appearance-none bg-transparent py-0 pl-4 pr-8 text-base font-medium text-muted outline-none"
+            >
+              {CURRENCY_CODES.map((code) => (
+                <option key={code} value={code}>
+                  {code}
+                </option>
+              ))}
+            </select>
+            <span
+              aria-hidden
+              className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted"
+            >
+              ▾
+            </span>
+          </div>
+
           <input
             value={amount}
             onChange={(event) => setAmount(event.target.value)}
             required
             inputMode="decimal"
             placeholder="0.00"
-            className="amount h-14 rounded-xl border border-edge bg-raised px-4 text-xl font-semibold outline-none focus:border-accent"
+            className="amount h-14 min-w-0 flex-1 bg-transparent px-4 text-xl font-semibold outline-none"
           />
-        </label>
-        <label className="flex w-32 shrink-0 flex-col gap-1.5">
-          <span className="text-sm font-medium">Currency</span>
-          <select
-            value={currency}
-            onChange={(event) => {
-              setTouchedCurrency(true)
-              setCurrency(event.target.value)
-            }}
-            className="h-14 rounded-xl border border-edge bg-raised px-3 text-base outline-none focus:border-accent"
-          >
-            {CURRENCY_CODES.map((code) => (
-              <option key={code} value={code}>
-                {code}
-              </option>
-            ))}
-          </select>
-        </label>
+        </div>
       </div>
 
       <div className="flex gap-3">
@@ -388,10 +417,15 @@ export default function ExpenseForm({
 
       <WithPicker
         groups={groups}
-        friends={friends}
+        // Never yourself: you are in every expense you add, which is what the
+        // picker's own footnote promises. Editing can surface you here, because
+        // the edit page adds anyone on the expense who is not already a friend.
+        friends={friends.filter((friend) => friend.id !== currentProfileId)}
         groupId={groupId}
         withIds={withIds}
         open={pickerOpen}
+        // Editing cannot move an expense into a group, so groups are not offered.
+        hideGroups={Boolean(editing)}
         canClose={groupId !== null || withIds.length > 0}
         onClose={() => setPickerOpen(false)}
         onApply={({ groupId: nextGroupId, withIds: nextWithIds }) => {

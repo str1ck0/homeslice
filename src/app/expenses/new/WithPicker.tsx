@@ -31,6 +31,7 @@ export default function WithPicker({
   open,
   onClose,
   canClose,
+  hideGroups = false,
 }: {
   groups: GroupOption[]
   friends: Member[]
@@ -41,6 +42,11 @@ export default function WithPicker({
   onClose: () => void
   /** False on first open, when there is nothing to go back to. */
   canClose: boolean
+  /**
+   * Hidden while editing: `update_expense` cannot change an expense's group, so
+   * offering one would be a promise the save could not keep.
+   */
+  hideGroups?: boolean
 }) {
   const [chosen, setChosen] = useState<string[]>(withIds)
 
@@ -52,7 +58,8 @@ export default function WithPicker({
     )
   }
 
-  const nothingToPick = groups.length === 0 && friends.length === 0
+  const showGroups = !hideGroups && groups.length > 0
+  const nothingToPick = !showGroups && friends.length === 0
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-surface">
@@ -84,7 +91,7 @@ export default function WithPicker({
           </div>
         )}
 
-        {groups.length > 0 && (
+        {showGroups && (
           <section>
             <h3 className="px-5 pb-2 pt-4 text-sm font-semibold uppercase tracking-wider text-muted">
               Groups

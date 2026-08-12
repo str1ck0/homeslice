@@ -8,6 +8,7 @@ import { Avatar } from '@/components/ui'
 export interface AddableFriend {
   profileId: string
   displayName: string
+  avatarUrl: string | null
 }
 
 /**
@@ -118,7 +119,7 @@ export default function AddMemberButton({
                         disabled={busyId !== null}
                         className="flex w-full items-center gap-3 p-4 text-left transition-colors hover:bg-raised disabled:opacity-50"
                       >
-                        <Avatar name={friend.displayName} url={null} size={36} />
+                        <Avatar name={friend.displayName} url={friend.avatarUrl} size={36} />
                         <p className="min-w-0 flex-1 truncate text-sm font-medium">
                           {friend.displayName}
                         </p>

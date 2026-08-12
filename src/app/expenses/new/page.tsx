@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { getCurrentProfile } from '@/server/services/session'
 import {
   getGroup,
-  getGroupMembers,
+  getMembersByGroup,
   listMyGroups,
   suggestGroupCurrency,
 } from '@/server/services/groups'
@@ -23,14 +23,15 @@ export default async function NewExpensePage({
 
   const supabase = await createClient()
 
-  const [categoriesResult, groups, friends, members, group, recentCurrency] = await Promise.all([
+  const [categoriesResult, groups, friends, membersByGroup, group, recentCurrency] =
+    await Promise.all([
     supabase.from('categories').select('id, name').order('name'),
     listMyGroups(),
     listFriends(),
-    groupId ? getGroupMembers(groupId) : Promise.resolve([]),
+    getMembersByGroup(),
     groupId ? getGroup(groupId).catch(() => null) : Promise.resolve(null),
     groupId ? suggestGroupCurrency(groupId).catch(() => null) : Promise.resolve(null),
-  ])
+    ])
 
   // What the group last spent in beats what it happened to be created in.
   const defaultCurrency = recentCurrency ?? group?.currency ?? profile.default_currency
@@ -48,11 +49,12 @@ export default async function NewExpensePage({
         avatarUrl: g.avatarUrl,
         memberCount: g.memberCount,
       }))}
-      groupMembers={members.map((m) => ({
-        id: m.profileId,
-        name: m.displayName,
-        avatarUrl: m.avatarUrl,
-      }))}
+      membersByGroup={Object.fromEntries(
+        Object.entries(membersByGroup).map(([id, members]) => [
+          id,
+          members.map((m) => ({ id: m.profileId, name: m.displayName, avatarUrl: m.avatarUrl })),
+        ])
+      )}
       friends={friends.map((f) => ({
         id: f.profileId,
         name: f.displayName,

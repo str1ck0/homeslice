@@ -103,7 +103,7 @@ export default async function EditExpensePage({
         avatarUrl: g.avatarUrl,
         memberCount: g.memberCount,
       }))}
-      groupMembers={expense.groupId ? [...baseMembers, ...extras] : []}
+      membersByGroup={expense.groupId ? { [expense.groupId]: [...baseMembers, ...extras] } : {}}
       friends={expense.groupId ? [] : [...baseMembers, ...extras]}
       defaultCurrency={expense.currency}
       categories={categoriesResult.data ?? []}

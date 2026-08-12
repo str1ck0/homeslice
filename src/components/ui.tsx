@@ -161,12 +161,116 @@ export function PageShell({
  * Currencies are never converted, so several can be outstanding at once and
  * joining them with "+" is more honest than picking one to display.
  */
-export function CurrencyTotals({
+/** Split a signed per-currency map into what you are owed and what you owe. */
+export function splitByDirection(totals: Map<string, number>) {
+  const owed = new Map<string, number>()
+  const owing = new Map<string, number>()
+
+  for (const [currency, cents] of totals) {
+    if (cents > 0) owed.set(currency, cents)
+    else if (cents < 0) owing.set(currency, -cents)
+  }
+
+  return { owed, owing }
+}
+
+/**
+ * A balance, said in whichever direction each currency actually runs.
+ *
+ * "Overall, you're owed €59.79 + R500.00" was a lie whenever the two pointed
+ * opposite ways: the euros were owed *by* you, coloured red under a heading
+ * that said the reverse, and the plus sign invited adding numbers that must
+ * never be added. Money in different currencies has no sum, and money in
+ * different directions has no single sentence — so each direction gets a line.
+ */
+export function BalanceSummary({
   totals,
+  size = 'md',
   className = '',
 }: {
   totals: Map<string, number>
+  size?: 'md' | 'lg'
   className?: string
+}) {
+  const { owed, owing } = splitByDirection(totals)
+
+  if (owed.size === 0 && owing.size === 0) {
+    return <p className={`text-sm text-muted ${className}`}>You&rsquo;re all square.</p>
+  }
+
+  const amountClass = size === 'lg' ? 'text-3xl font-bold' : 'text-base font-semibold'
+
+  return (
+    <div className={`flex flex-col ${size === 'lg' ? 'gap-3' : 'gap-1'} ${className}`}>
+      {owing.size > 0 && (
+        <p>
+          <span className="block text-sm text-muted">You owe</span>
+          <CurrencyTotals
+            totals={owing}
+            forceDirection="owing"
+            className={`amount ${amountClass}`}
+          />
+        </p>
+      )}
+      {owed.size > 0 && (
+        <p>
+          <span className="block text-sm text-muted">You are owed</span>
+          <CurrencyTotals
+            totals={owed}
+            forceDirection="owed"
+            className={`amount ${amountClass}`}
+          />
+        </p>
+      )}
+    </div>
+  )
+}
+
+/**
+ * The compact version, for a list row. Same rule as BalanceSummary: a row can
+ * hold both directions at once — someone can owe you rand while you owe them
+ * euros — so it never claims a single one.
+ */
+export function PersonBalance({
+  totals,
+  owesYouLabel = 'owes you',
+}: {
+  totals: Map<string, number>
+  owesYouLabel?: string
+}) {
+  const { owed, owing } = splitByDirection(totals)
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      {owed.size > 0 && (
+        <div>
+          <p className="text-xs text-muted">{owesYouLabel}</p>
+          <CurrencyTotals totals={owed} forceDirection="owed" className="amount font-semibold" />
+        </div>
+      )}
+      {owing.size > 0 && (
+        <div>
+          <p className="text-xs text-muted">you owe</p>
+          <CurrencyTotals totals={owing} forceDirection="owing" className="amount font-semibold" />
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function CurrencyTotals({
+  totals,
+  className = '',
+  forceDirection,
+}: {
+  totals: Map<string, number>
+  className?: string
+  /**
+   * Colour every entry the same way regardless of sign. Used by
+   * BalanceSummary, which has already sorted them into a direction and passes
+   * positive numbers for both.
+   */
+  forceDirection?: 'owed' | 'owing'
 }) {
   const entries = [...totals.entries()]
   if (entries.length === 0) return null
@@ -175,8 +279,14 @@ export function CurrencyTotals({
     <span className={className}>
       {entries.map(([currency, cents], index) => (
         <span key={currency}>
-          {index > 0 && <span className="text-muted"> + </span>}
-          <span className={cents > 0 ? 'text-positive' : 'text-negative'}>
+          {index > 0 && <span className="text-muted"> and </span>}
+          <span
+            className={
+              (forceDirection ?? (cents > 0 ? 'owed' : 'owing')) === 'owed'
+                ? 'text-positive'
+                : 'text-negative'
+            }
+          >
             {formatCents(Math.abs(cents), currency)}
           </span>
         </span>

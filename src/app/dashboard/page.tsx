@@ -5,7 +5,7 @@ import { getOverview } from '@/server/services/overview'
 import { listFriends } from '@/server/services/friends'
 import { listMyGroups } from '@/server/services/groups'
 import { createClient } from '@/lib/supabase/server'
-import { Card, CurrencyTotals, EmptyState, ExpenseRow, PageShell } from '@/components/ui'
+import { BalanceSummary, Card, EmptyState, ExpenseRow, PageShell } from '@/components/ui'
 
 // Balances change on every expense, so this page is always rendered fresh.
 export const dynamic = 'force-dynamic'
@@ -101,11 +101,8 @@ export default async function DashboardPage({
           href="/friends"
           className="mb-6 block rounded-2xl border border-edge bg-raised p-5 transition-colors hover:border-accent/50"
         >
-          <p className="text-sm text-muted">Overall, {owed ? "you're owed" : 'you owe'}</p>
-          <p className="mt-1 text-3xl font-bold">
-            <CurrencyTotals totals={overview.overall} />
-          </p>
-          <p className="mt-2 text-sm text-accent">See who &rarr;</p>
+          <BalanceSummary totals={overview.overall} size="lg" />
+          <p className="mt-3 text-sm text-accent">See who &rarr;</p>
         </Link>
       )}
 
