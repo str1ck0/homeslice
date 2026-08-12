@@ -2,53 +2,45 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { addGroupMemberAction, addPlaceholderAction } from '@/app/actions'
+import { addGroupMemberAction } from '@/app/actions'
 import { Avatar } from '@/components/ui'
 
 export interface AddableFriend {
   profileId: string
   displayName: string
-  username: string | null
-  isPlaceholder: boolean
 }
 
 /**
- * Add people to a group: your existing friends first, and a new person second.
+ * Add friends to a group.
  *
- * The old version only offered "add someone who hasn't signed up", so the one
- * thing you actually want most of the time — put a friend you already have in
- * this group — was impossible without making a duplicate of them.
+ * Anyone who is not yet on Homeslice gets the invite code instead of a
+ * stand-in profile: there is no longer such a thing as a person without an
+ * account, so the honest answer to "they haven't signed up" is "get them to".
  */
 export default function AddMemberButton({
   groupId,
   friends,
+  inviteCode,
 }: {
   groupId: string
   friends: AddableFriend[]
+  inviteCode: string
 }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
-  const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
-  const [showNewPerson, setShowNewPerson] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const needle = query.trim().toLowerCase()
   const matches = needle
-    ? friends.filter(
-        (friend) =>
-          friend.displayName.toLowerCase().includes(needle) ||
-          friend.username?.toLowerCase().includes(needle)
-      )
+    ? friends.filter((friend) => friend.displayName.toLowerCase().includes(needle))
     : friends
 
   function close() {
     setOpen(false)
     setError(null)
     setQuery('')
-    setShowNewPerson(false)
   }
 
   async function addFriend(profileId: string) {
@@ -63,25 +55,6 @@ export default function AddMemberButton({
       return
     }
 
-    router.refresh()
-  }
-
-  async function addNewPerson(event: React.FormEvent) {
-    event.preventDefault()
-    setBusyId('new')
-    setError(null)
-
-    const result = await addPlaceholderAction(groupId, name, email || undefined)
-    setBusyId(null)
-
-    if (!result.ok) {
-      setError(result.error ?? 'Could not add them')
-      return
-    }
-
-    setName('')
-    setEmail('')
-    setShowNewPerson(false)
     router.refresh()
   }
 
@@ -113,120 +86,68 @@ export default function AddMemberButton({
           </p>
         )}
 
-        {friends.length > 0 && (
-          <section>
-            <h3 className="mb-2 text-sm font-semibold uppercase tracking-wider text-muted">
-              Your friends
-            </h3>
-
-            {friends.length > 6 && (
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search friends"
-                autoCapitalize="none"
-                className="mb-2 w-full rounded-xl border border-edge bg-raised px-4 py-3 text-base outline-none focus:border-accent"
-              />
-            )}
-
-            {matches.length === 0 ? (
-              <p className="px-1 py-3 text-sm text-muted">Nobody by that name.</p>
-            ) : (
-              <ul className="divide-y divide-edge overflow-hidden rounded-2xl border border-edge">
-                {matches.map((friend) => (
-                  <li key={friend.profileId}>
-                    <button
-                      onClick={() => addFriend(friend.profileId)}
-                      disabled={busyId !== null}
-                      className="flex w-full items-center gap-3 p-4 text-left transition-colors hover:bg-raised disabled:opacity-50"
-                    >
-                      <Avatar name={friend.displayName} url={null} size={36} />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">{friend.displayName}</p>
-                        {friend.username ? (
-                          <p className="truncate text-xs text-muted">@{friend.username}</p>
-                        ) : friend.isPlaceholder ? (
-                          <p className="text-xs text-muted">Hasn&rsquo;t signed up yet</p>
-                        ) : null}
-                      </div>
-                      <span className="text-sm font-semibold text-accent">
-                        {busyId === friend.profileId ? 'Adding…' : 'Add'}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        )}
-
         <section>
-          {!showNewPerson ? (
-            <button
-              onClick={() => setShowNewPerson(true)}
-              className="w-full rounded-xl border border-edge py-3 text-sm font-semibold text-accent transition-colors hover:border-accent"
-            >
-              {friends.length > 0 ? 'Someone not in your friends' : 'Add someone new'}
-            </button>
+          <h3 className="mb-2 text-sm font-semibold uppercase tracking-wider text-muted">
+            Your friends
+          </h3>
+
+          {friends.length === 0 ? (
+            <p className="rounded-2xl border border-edge px-4 py-5 text-center text-sm text-muted">
+              Everyone you are friends with is already in this group.
+            </p>
           ) : (
-            <form
-              onSubmit={addNewPerson}
-              className="flex flex-col gap-3 rounded-2xl border border-edge bg-raised p-4"
-            >
-              <label className="flex flex-col gap-1.5">
-                <span className="text-sm font-medium">Their name</span>
+            <>
+              {friends.length > 6 && (
                 <input
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  required
-                  autoFocus
-                  maxLength={80}
-                  placeholder="Mum"
-                  className="rounded-xl border border-edge bg-surface px-4 py-3 text-base outline-none focus:border-accent"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Search friends"
+                  autoCapitalize="none"
+                  className="mb-2 w-full rounded-xl border border-edge bg-raised px-4 py-3 text-base outline-none focus:border-accent"
                 />
-              </label>
+              )}
 
-              <label className="flex flex-col gap-1.5">
-                <span className="text-sm font-medium">
-                  Their email <span className="font-normal text-muted">Optional</span>
-                </span>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  placeholder="mum@example.com"
-                  className="rounded-xl border border-edge bg-surface px-4 py-3 text-base outline-none focus:border-accent"
-                />
-                <span className="text-xs text-muted">
-                  If they sign up with this address later, they take over this person and keep
-                  the history.
-                </span>
-              </label>
-
-              <div className="flex gap-2">
-                <button
-                  type="submit"
-                  disabled={busyId !== null}
-                  className="flex-1 rounded-xl bg-accent px-4 py-3 font-semibold text-white disabled:opacity-50"
-                >
-                  {busyId === 'new' ? 'Adding…' : 'Add them'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowNewPerson(false)}
-                  className="rounded-xl border border-edge px-4 py-3 font-semibold text-muted"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
+              {matches.length === 0 ? (
+                <p className="px-1 py-3 text-sm text-muted">Nobody by that name.</p>
+              ) : (
+                <ul className="divide-y divide-edge overflow-hidden rounded-2xl border border-edge">
+                  {matches.map((friend) => (
+                    <li key={friend.profileId}>
+                      <button
+                        onClick={() => addFriend(friend.profileId)}
+                        disabled={busyId !== null}
+                        className="flex w-full items-center gap-3 p-4 text-left transition-colors hover:bg-raised disabled:opacity-50"
+                      >
+                        <Avatar name={friend.displayName} url={null} size={36} />
+                        <p className="min-w-0 flex-1 truncate text-sm font-medium">
+                          {friend.displayName}
+                        </p>
+                        <span className="text-sm font-semibold text-accent">
+                          {busyId === friend.profileId ? 'Adding…' : 'Add'}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
           )}
         </section>
 
-        <p className="text-center text-sm text-muted text-balance">
-          Nothing is sent to them — Homeslice doesn&rsquo;t email anyone. Share the invite code
-          yourself when you like.
-        </p>
+        <section>
+          <h3 className="mb-2 text-sm font-semibold uppercase tracking-wider text-muted">
+            Someone not on Homeslice
+          </h3>
+          <div className="rounded-2xl border border-edge p-4">
+            <p className="text-sm text-muted">
+              They need an account of their own. Send them this code — joining with it puts them
+              straight into the group.
+            </p>
+            <p className="mt-3 select-all rounded-xl bg-raised px-4 py-3 text-center text-xl font-bold tracking-[0.3em]">
+              {inviteCode}
+            </p>
+          </div>
+        </section>
 
         <div className="mt-auto">
           <button

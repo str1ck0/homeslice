@@ -55,20 +55,26 @@ export default function ProfileFields({
     return (
       <>
         <div className="flex items-center justify-between p-4">
-          <span className="text-sm text-muted">Default currency</span>
+          <span className="text-sm text-muted">Your name</span>
           <div className="flex items-center gap-3">
-            <span className="text-sm font-medium">{initialCurrency}</span>
+            <span className="truncate text-sm font-medium">{initialName}</span>
             <button
               onClick={() => {
                 setEditing(true)
                 setSaved(false)
               }}
-              className="text-sm font-medium text-accent"
+              className="shrink-0 text-sm font-medium text-accent"
             >
               Edit
             </button>
           </div>
         </div>
+
+        <div className="flex items-center justify-between p-4">
+          <span className="text-sm text-muted">Default currency</span>
+          <span className="text-sm font-medium">{initialCurrency}</span>
+        </div>
+
         {saved && (
           <p role="status" className="px-4 pb-3 text-sm font-medium text-positive">
             Saved.
@@ -90,7 +96,9 @@ export default function ProfileFields({
           maxLength={80}
           className="rounded-xl border border-edge bg-surface px-4 py-3 text-base outline-none focus:border-accent"
         />
-        <span className="text-xs text-muted">This is what everyone you split with sees.</span>
+        <span className="text-xs text-muted">
+          What people see, and what they type to add you — so it has to be unique.
+        </span>
       </label>
 
       <label className="flex flex-col gap-1.5">

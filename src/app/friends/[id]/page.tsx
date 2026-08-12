@@ -37,10 +37,6 @@ export default async function FriendPage({ params }: { params: Promise<{ id: str
         <Avatar name={friend.displayName} url={friend.avatarUrl} size={56} />
         <div className="min-w-0">
           <h1 className="truncate text-2xl font-bold tracking-tight">{friend.displayName}</h1>
-          {friend.username && <p className="text-sm text-muted">@{friend.username}</p>}
-          {friend.isPlaceholder && (
-            <p className="text-sm text-muted">Hasn&rsquo;t signed up yet</p>
-          )}
         </div>
       </div>
 

@@ -636,53 +636,36 @@ export type Database = {
       }
       profiles: {
         Row: {
-          auth_user_id: string | null
+          auth_user_id: string
           avatar_url: string | null
-          claimed_at: string | null
           created_at: string
-          created_by: string | null
           default_currency: string
           display_name: string
           email: string | null
           id: string
           updated_at: string
-          username: string | null
         }
         Insert: {
-          auth_user_id?: string | null
+          auth_user_id: string
           avatar_url?: string | null
-          claimed_at?: string | null
           created_at?: string
-          created_by?: string | null
           default_currency?: string
           display_name: string
           email?: string | null
           id?: string
           updated_at?: string
-          username?: string | null
         }
         Update: {
-          auth_user_id?: string | null
+          auth_user_id?: string
           avatar_url?: string | null
-          claimed_at?: string | null
           created_at?: string
-          created_by?: string | null
           default_currency?: string
           display_name?: string
           email?: string | null
           id?: string
           updated_at?: string
-          username?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "profiles_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       push_subscriptions: {
         Row: {
@@ -852,16 +835,9 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      add_friend: {
-        Args: { p_display_name?: string; p_identifier: string }
-        Returns: string
-      }
+      add_friend: { Args: { p_name: string }; Returns: string }
       add_group_member: {
         Args: { p_group_id: string; p_profile_id: string }
-        Returns: string
-      }
-      add_placeholder_member: {
-        Args: { p_display_name: string; p_email?: string; p_group_id: string }
         Returns: string
       }
       can_access_expense: { Args: { target_expense: string }; Returns: boolean }
@@ -899,7 +875,8 @@ export type Database = {
       is_group_admin: { Args: { target_group: string }; Returns: boolean }
       join_group_by_code: { Args: { code: string }; Returns: string }
       my_group_ids: { Args: never; Returns: string[] }
-      set_username: { Args: { p_username: string }; Returns: string }
+      normalise_name: { Args: { value: string }; Returns: string }
+      rename_me: { Args: { p_name: string }; Returns: string }
       update_expense: {
         Args: {
           p_amount_cents: number

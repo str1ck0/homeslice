@@ -151,7 +151,6 @@ export interface GroupMember {
   displayName: string
   avatarUrl: string | null
   role: string
-  isPlaceholder: boolean
 }
 
 export async function getGroupMembers(groupId: string): Promise<GroupMember[]> {
@@ -159,7 +158,7 @@ export async function getGroupMembers(groupId: string): Promise<GroupMember[]> {
 
   const { data, error } = await supabase
     .from('group_members')
-    .select('role, profile_id, profiles!inner(id, display_name, avatar_url, auth_user_id)')
+    .select('role, profile_id, profiles!inner(id, display_name, avatar_url)')
     .eq('group_id', groupId)
     .is('left_at', null)
     .order('joined_at')
@@ -171,14 +170,12 @@ export async function getGroupMembers(groupId: string): Promise<GroupMember[]> {
       id: string
       display_name: string
       avatar_url: string | null
-      auth_user_id: string | null
     }
     return {
       profileId: profile.id,
       displayName: profile.display_name,
       avatarUrl: profile.avatar_url,
       role: row.role,
-      isPlaceholder: profile.auth_user_id === null,
     }
   })
 }
@@ -196,9 +193,8 @@ export async function getGroup(groupId: string) {
 }
 
 /**
- * Add someone you already know to a group — a friend, or a placeholder you
- * created elsewhere. They keep their identity and their history, which is the
- * whole point of not making a fresh placeholder every time.
+ * Add someone you already know to a group — a friend, or somebody already in
+ * another group with you. They keep their identity and their history.
  */
 export async function addGroupMember(groupId: string, profileId: string): Promise<string> {
   const parsed = z
@@ -357,30 +353,4 @@ export async function deleteGroup(groupId: string): Promise<string> {
   // The name comes back from the deleted row so the dashboard can say which
   // group went — by the time it renders, there is nothing left to look up.
   return data[0].name
-}
-
-/** Add someone who has not signed up. They can be split with immediately. */
-export async function addPlaceholderMember(
-  groupId: string | null,
-  displayName: string,
-  email?: string
-): Promise<string> {
-  const parsed = z
-    .object({
-      displayName: z.string().trim().min(1, 'Enter a name').max(80),
-      email: z.string().trim().email('That does not look like an email').optional().or(z.literal('')),
-    })
-    .parse({ displayName, email: email ?? '' })
-
-  await requireProfile()
-  const supabase = await createClient()
-
-  const { data, error } = await supabase.rpc('add_placeholder_member', {
-    p_group_id: groupId,
-    p_display_name: parsed.displayName,
-    p_email: parsed.email || null,
-  } as never)
-
-  if (error) throw new Error(error.message)
-  return data as string
 }

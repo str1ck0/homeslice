@@ -93,13 +93,22 @@ export default function AuthForm() {
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         {mode === 'signup' && (
-          <Field
-            label="Your name"
-            value={displayName}
-            onChange={setDisplayName}
-            autoComplete="name"
-            placeholder="Liam"
-          />
+          <>
+            <Field
+              label="Your name"
+              value={displayName}
+              onChange={setDisplayName}
+              autoComplete="name"
+              maxLength={40}
+              placeholder="Stricko"
+            />
+            {/* Worth saying up front: this is the one identity, and it is how
+                people find you. It can be changed later. */}
+            <p className="-mt-2 text-xs text-muted">
+              This is what people see and what they type to add you, so it has to be unique.
+              Anything you like — your name, or a handle. You can change it later.
+            </p>
+          </>
         )}
 
         <Field

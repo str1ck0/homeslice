@@ -41,6 +41,8 @@ interface TestUser {
   authId: string
   profileId: string
   email: string
+  /** Unique per run — display names are globally unique now. */
+  displayName: string
   client: SupabaseClient
 }
 
@@ -51,7 +53,7 @@ async function createUser(name: string): Promise<TestUser> {
     email,
     password: PASSWORD,
     email_confirm: true,
-    user_metadata: { display_name: name },
+    user_metadata: { display_name: `${name}-${stamp}` },
   })
   if (createError) throw createError
 
@@ -70,7 +72,13 @@ async function createUser(name: string): Promise<TestUser> {
     .single()
   if (profileError) throw profileError
 
-  return { authId: created.user.id, profileId: profile.id, email, client }
+  return {
+    authId: created.user.id,
+    profileId: profile.id,
+    email,
+    displayName: `${name}-${stamp}`,
+    client,
+  }
 }
 
 const describeIntegration = hasCredentials ? describe : describe.skip

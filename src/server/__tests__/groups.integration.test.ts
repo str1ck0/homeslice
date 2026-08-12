@@ -35,6 +35,8 @@ interface TestUser {
   authId: string
   profileId: string
   email: string
+  /** Unique per run — display names are globally unique now. */
+  displayName: string
   client: SupabaseClient
 }
 
@@ -45,7 +47,7 @@ async function createUser(name: string): Promise<TestUser> {
     email,
     password: PASSWORD,
     email_confirm: true,
-    user_metadata: { display_name: name },
+    user_metadata: { display_name: `${name}-${stamp}` },
   })
   if (createError) throw createError
 
@@ -60,7 +62,13 @@ async function createUser(name: string): Promise<TestUser> {
     .single()
   if (profileError) throw profileError
 
-  return { authId: created.user.id, profileId: profile.id, email, client }
+  return {
+    authId: created.user.id,
+    profileId: profile.id,
+    email,
+    displayName: `${name}-${stamp}`,
+    client,
+  }
 }
 
 const describeIntegration = hasCredentials ? describe : describe.skip
@@ -92,8 +100,7 @@ describeIntegration('group membership and deletion', () => {
 
     // Owner and friend know each other; stranger knows nobody.
     const { error } = await owner.client.rpc('add_friend', {
-      p_identifier: friend.email,
-      p_display_name: null,
+      p_name: friend.displayName,
     })
     if (error) throw error
   }, 60_000)
@@ -453,6 +460,118 @@ describeIntegration('group membership and deletion', () => {
         .select('id')
         .in('id', [owner.profileId, friend.profileId])
       expect(profiles).toHaveLength(2)
+    })
+  })
+
+  describe('names are the identity', () => {
+    it('finds someone by name ignoring case and extra spaces', async () => {
+      // Deliberately mangled: uppercased, with padding and a doubled space.
+      const mangled = `  ${friend.displayName.toUpperCase()}  `.replace('-', '-')
+
+      const { data, error } = await stranger.client.rpc('add_friend', {
+        p_name: mangled,
+      })
+
+      expect(error).toBeNull()
+      expect(data).toBe(friend.profileId)
+    })
+
+    it('refuses a name that belongs to nobody, rather than inventing them', async () => {
+      const { data, error } = await owner.client.rpc('add_friend', {
+        p_name: `nobody-called-this-${stamp}`,
+      })
+
+      expect(error).not.toBeNull()
+      expect(error!.message).toMatch(/nobody on homeslice/i)
+      expect(data).toBeNull()
+
+      // The old behaviour created a placeholder here. Nothing should exist.
+      const { data: invented } = await admin!
+        .from('profiles')
+        .select('id')
+        .eq('display_name', `nobody-called-this-${stamp}`)
+      expect(invented ?? []).toEqual([])
+    })
+
+    it('will not let two people hold the same name', async () => {
+      // Read both names back rather than trusting what we asked for at signup:
+      // the trigger is allowed to have deduplicated either of them.
+      const { data: rows } = await admin!
+        .from('profiles')
+        .select('id, display_name')
+        .in('id', [owner.profileId, stranger.profileId])
+
+      expect(rows).toHaveLength(2)
+      const ownerName = rows!.find((r) => r.id === owner.profileId)!.display_name
+
+      const { error } = await admin!
+        .from('profiles')
+        .update({ display_name: ownerName })
+        .eq('id', stranger.profileId)
+
+      // Enforced by the unique index, so even the service role cannot do it.
+      expect(error).not.toBeNull()
+      expect(error!.code).toBe('23505')
+    })
+
+    it('renames you, and reports a clash rather than a unique violation', async () => {
+      const taken = await owner.client.rpc('rename_me', { p_name: friend.displayName })
+      expect(taken.error).not.toBeNull()
+      expect(taken.error!.message).toMatch(/taken/i)
+
+      const free = await owner.client.rpc('rename_me', { p_name: `Renamed ${stamp}` })
+      expect(free.error).toBeNull()
+      expect(free.data).toBe(`Renamed ${stamp}`)
+
+      // Put it back so the rest of the suite still recognises them.
+      await owner.client.rpc('rename_me', { p_name: owner.displayName })
+    })
+
+    it('rejects a name that is too short', async () => {
+      const { error } = await owner.client.rpc('rename_me', { p_name: 'x' })
+      expect(error).not.toBeNull()
+      expect(error!.message).toMatch(/2 and 40/)
+    })
+
+    it('gives every signup a profile with a login attached', async () => {
+      // auth_user_id is NOT NULL now, so a profile without an account cannot
+      // exist at all — this is what replaced placeholders.
+      const { data } = await admin!
+        .from('profiles')
+        .select('id')
+        .is('auth_user_id', null)
+
+      expect(data ?? []).toEqual([])
+    })
+
+    it('deduplicates a colliding name at signup instead of failing', async () => {
+      // Two accounts asking for the same name: the second must still get in.
+      const wanted = `Twin ${stamp}`
+      const first = await createUser('twin-a')
+      await first.client.rpc('rename_me', { p_name: wanted })
+
+      const second = await admin!.auth.admin.createUser({
+        email: `test-twin-b-${stamp}@homeslice.test`,
+        password: PASSWORD,
+        email_confirm: true,
+        user_metadata: { display_name: wanted },
+      })
+      expect(second.error).toBeNull()
+
+      const { data: profiles } = await admin!
+        .from('profiles')
+        .select('display_name')
+        .in('auth_user_id', [first.authId, second.data.user!.id])
+
+      const names = (profiles ?? []).map((p) => p.display_name)
+      expect(names).toHaveLength(2)
+      expect(new Set(names).size).toBe(2)
+      expect(names).toContain(wanted)
+
+      await admin!.from('profiles').delete().eq('auth_user_id', first.authId)
+      await admin!.from('profiles').delete().eq('auth_user_id', second.data.user!.id)
+      await admin!.auth.admin.deleteUser(first.authId)
+      await admin!.auth.admin.deleteUser(second.data.user!.id)
     })
   })
 

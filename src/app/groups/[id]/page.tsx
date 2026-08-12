@@ -42,8 +42,6 @@ export default async function GroupPage({
     .map((friend) => ({
       profileId: friend.profileId,
       displayName: friend.displayName,
-      username: friend.username,
-      isPlaceholder: friend.isPlaceholder,
     }))
 
   const isAdmin = members.some(
@@ -151,7 +149,11 @@ export default async function GroupPage({
             isAdmin={isAdmin}
           />
 
-          <AddMemberButton groupId={id} friends={addableFriends} />
+          <AddMemberButton
+            groupId={id}
+            friends={addableFriends}
+            inviteCode={group.invite_code}
+          />
 
           <Card className="mt-3 p-4">
             <p className="text-sm font-medium">Invite someone</p>

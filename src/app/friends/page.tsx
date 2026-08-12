@@ -68,7 +68,7 @@ export default async function FriendsPage({
         <Card>
           <EmptyState
             title="No friends yet"
-            body="Add someone by their username, or by email. If they're not on Homeslice you can still split with them — they'll pick up the history when they sign up."
+            body="Add someone by the name they go by on Homeslice. They'll need an account of their own — send them the app first if they haven't got one."
             action={<AddFriendButton />}
           />
         </Card>
@@ -84,9 +84,6 @@ export default async function FriendsPage({
                   <Avatar name={friend.displayName} url={friend.avatarUrl} size={44} />
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-semibold">{friend.displayName}</p>
-                    {friend.isPlaceholder && (
-                      <p className="truncate text-sm text-muted">Hasn&rsquo;t signed up yet</p>
-                    )}
                   </div>
                   <div className="text-right">
                     {totals.size === 0 ? (

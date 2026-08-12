@@ -1,38 +1,25 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { addFriendAction } from '@/app/actions'
 
 /**
- * Add by username or email, with a name as the fallback.
+ * Add someone by the name they go by on Homeslice.
  *
- * Follows the shape Splitwise uses — one identifier field, a name, and an
- * action that stays disabled until there is enough to work with — minus the
- * contacts picker, which needs an address book the browser cannot reach on
- * iOS, and minus the invite promise, since Homeslice sends no email.
- *
- * The reassurance line is deliberately different from Splitwise's "nothing
- * sends just yet": nothing sends at all, ever, and saying so is more useful
- * than implying an invite is coming.
+ * One field, because there is only one identity now: your name is unique and is
+ * both what people see and what people type to find you. The previous version
+ * asked for a username or an email plus a fallback name, and would invent a
+ * person who had not signed up — that is gone, so a name that belongs to nobody
+ * is simply a miss.
  */
 export default function AddFriendButton({ compact = false }: { compact?: boolean }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
-  const [identifier, setIdentifier] = useState('')
   const [name, setName] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  // A leading @ is how people write a username; only an @ inside the string
-  // means an email. Without this, typing "@sam" is read as an email address.
-  const isHandle = identifier.trim().startsWith('@')
-  const looksLikeEmail = !isHandle && identifier.includes('@')
-  const hasIdentifier = identifier.trim() !== ''
-  // An email can create a placeholder, so it needs a name. A username must
-  // already belong to somebody, so it does not.
-  const needsName = !hasIdentifier || looksLikeEmail
-  const canSubmit = hasIdentifier ? (!needsName || name.trim() !== '') : name.trim() !== ''
+  const submitting = useRef(false)
 
   function close() {
     setOpen(false)
@@ -41,18 +28,22 @@ export default function AddFriendButton({ compact = false }: { compact?: boolean
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault()
+    if (submitting.current) return
+    submitting.current = true
+
     setBusy(true)
     setError(null)
 
-    const result = await addFriendAction(identifier, name || undefined)
+    const result = await addFriendAction(name)
+
     setBusy(false)
+    submitting.current = false
 
     if (!result.ok) {
       setError(result.error ?? 'Could not add them')
       return
     }
 
-    setIdentifier('')
     setName('')
     close()
     router.refresh()
@@ -85,44 +76,26 @@ export default function AddFriendButton({ compact = false }: { compact?: boolean
 
       <form onSubmit={handleSubmit} className="flex flex-1 flex-col gap-5 overflow-y-auto p-5">
         <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-medium">Username or email</span>
+          <span className="text-sm font-medium">Their name on Homeslice</span>
           <input
-            value={identifier}
-            onChange={(event) => setIdentifier(event.target.value)}
+            value={name}
+            onChange={(event) => setName(event.target.value)}
             autoFocus
             autoCapitalize="none"
             autoCorrect="off"
             spellCheck={false}
-            inputMode={looksLikeEmail ? 'email' : 'text'}
-            placeholder="@sam  or  sam@example.com"
+            maxLength={40}
+            placeholder="Stricko"
             className="rounded-xl border border-edge bg-raised px-4 py-3 text-base outline-none focus:border-accent"
           />
           <span className="text-xs text-muted">
-            {looksLikeEmail
-              ? "If nobody's using that email, they'll be added as a placeholder."
-              : 'A username finds someone already on Homeslice.'}
+            Exactly as they have it — capitals and spaces don&rsquo;t matter.
           </span>
-        </label>
-
-        <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-medium">
-            Their name{' '}
-            <span className="font-normal text-muted">
-              {needsName ? 'Required' : 'Optional'}
-            </span>
-          </span>
-          <input
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            maxLength={80}
-            placeholder="Sam"
-            className="rounded-xl border border-edge bg-raised px-4 py-3 text-base outline-none focus:border-accent"
-          />
         </label>
 
         <p className="text-center text-sm text-muted text-balance">
-          Nothing is sent to them — Homeslice doesn&rsquo;t email anyone. Add them now, split
-          straight away, and send them the link yourself when you like.
+          They need a Homeslice account first. Send them the app, then add them once they have
+          picked a name.
         </p>
 
         {error && (
@@ -134,7 +107,7 @@ export default function AddFriendButton({ compact = false }: { compact?: boolean
         <div className="mt-auto">
           <button
             type="submit"
-            disabled={busy || !canSubmit}
+            disabled={busy || name.trim().length < 2}
             className="w-full rounded-xl bg-accent px-4 py-3.5 font-semibold text-white transition-opacity disabled:opacity-40"
           >
             {busy ? 'Adding…' : 'Add friend'}

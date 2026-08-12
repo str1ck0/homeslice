@@ -3,9 +3,9 @@
 _Last updated: 12 August 2026._
 
 **Live:** https://homeslice-liam-stricklands-projects.vercel.app
-**Repo:** `master` at `8eecbae`, clean.
+**Repo:** `master`, clean.
 **Database:** Supabase project `zwnhbhymjaqjpuxfcbam` (eu-west-1), active.
-**Tests:** 105 unit + 29 integration, all passing.
+**Tests:** 105 unit + 45 integration, all passing.
 
 ---
 
@@ -14,12 +14,16 @@ _Last updated: 12 August 2026._
 The core Splitwise loop is done and has been used by two real people.
 
 - **Auth** — password, magic link, password reset.
-- **Friends** — add by username or email; people who haven't signed up become
-  placeholders you can split with immediately and who inherit the history when
-  they register. Sharing an expense auto-creates the friendship.
-- **Usernames** — claimable on Account, case-insensitive, unique.
-- **Groups** — create, join by invite code, free-text label, add existing
-  friends or new placeholders, delete. No type enum: every group can do
+- **Identity** — one name per person, and it does both jobs: what everyone sees
+  and what someone types to add you. Unique, ignoring case and extra spaces, so
+  two people can never look identical in a group. Spaces and capitals are fine —
+  "Liam Strickland", "Liam S" and "Stricko" are all valid. Changeable on Account,
+  where a clash says "Stricko is taken" rather than a database error.
+- **Friends** — add by name. Everyone has an account: there are no placeholder
+  people, and a name that belongs to nobody is a miss rather than a new profile.
+  Sharing an expense auto-creates the friendship.
+- **Groups** — create, rename, join by invite code, free-text label, add
+  friends, remove members, leave, delete. No type enum: every group can do
   everything, and no currency either — a group runs in as many currencies as
   your trip does.
 - **Expenses** — payer, five split types (equal, exact, percent, shares,
@@ -34,9 +38,16 @@ The core Splitwise loop is done and has been used by two real people.
 
 - **Activity feed.** Cut — you don't use Splitwise's.
 - **Email notifications and debt reminders.** Cut on purpose.
-- **Phone numbers.** Cut. Username is primary, email is the fallback.
+- **Phone numbers.** Cut. Your name is how people find you; email is only for
+  signing in.
 - **Contacts picker.** `navigator.contacts` is Chrome-on-Android only; Safari
   has never shipped it, so on iOS it would be a button that does nothing.
+- **Placeholder people.** Removed on 12 August. A profile without a login could
+  only be reunited with its owner by an email recorded when it was created, and
+  the form made that email optional — so anyone added by name alone could never
+  claim their history. Using Homeslice now means having an account. The cost,
+  stated plainly: you cannot record a split with someone until they have signed
+  up, so on a trip everyone installs before the first dinner goes in.
 
 ## Undo — done
 
@@ -104,9 +115,8 @@ asynchronous, so a second submit fired before React re-renders reads the stale
 value and goes through — and `disabled={busy}` only takes effect after that
 re-render too. Nineteen identical "Euro 26" groups came from exactly this. Use a
 `useRef`, which updates immediately. Fixed in the group form, the expense form
-and the settle form; `AuthForm`, `reset-password`, `AddFriendButton` and
-`UsernameField` still have the pattern, deliberately, because a repeat there is
-idempotent or harmless.
+and the settle form; `AuthForm` and `reset-password` still have the pattern,
+deliberately, because a repeat there is idempotent or harmless.
 
 **A successful Server Action that redirects has not navigated yet** when its
 promise settles. Leave the button disabled rather than restoring it, or it comes
@@ -134,14 +144,9 @@ landed on the old app.
 ## Accounts
 
 Four real logins exist: `liam.strickland96@gmail.com`, `lisbethpurrucker@gmail.com`,
-`howzit@gooi.me`, `bookings@wezlew.com`, with display names stricko,
-lizzardwizzard, Kiki and Wezlew. Profiles were backfilled after the rebuild.
+`howzit@gooi.me`, `bookings@wezlew.com` — named stricko, lizzardwizzard, Kiki and
+Wezlew. Those names are now the identity: unique, and what you type to add
+someone. Profiles were backfilled after the rebuild.
 
-**Nobody has actually claimed a username** — all four `username` columns are
-null, and "stricko" and "lizzardwizzard" are display names. Earlier versions of
-this doc said otherwise. It matters because adding a friend by username is the
-advertised primary path, so in practice everyone is using email.
-
-There are currently **no groups** — the nineteen accidental "Euro 26" duplicates
-were deleted on 12 August. Two non-group expenses exist between @stricko and
-@lizzardwizzard.
+No groups exist; the nineteen accidental "Euro 26" duplicates were deleted on
+12 August. Two non-group expenses exist between stricko and lizzardwizzard.

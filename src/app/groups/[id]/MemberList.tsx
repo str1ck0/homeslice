@@ -10,7 +10,6 @@ export interface MemberRow {
   displayName: string
   avatarUrl: string | null
   role: string
-  isPlaceholder: boolean
 }
 
 /**
@@ -75,9 +74,6 @@ export default function MemberList({
                   {member.displayName}
                   {isMe && <span className="ml-1.5 text-muted">(you)</span>}
                 </p>
-                {member.isPlaceholder && (
-                  <p className="text-xs text-muted">Hasn&rsquo;t signed up yet</p>
-                )}
               </div>
 
               {member.role === 'admin' && (
