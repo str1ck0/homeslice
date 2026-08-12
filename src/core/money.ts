@@ -73,39 +73,64 @@ export function parseAmountToCents(input: string, currency: string): Cents {
   return cents
 }
 
-/** Format integer cents for display, e.g. 123456 -> "R1,234.56". */
+/**
+ * Symbols we are willing to print. Anything absent is shown as its code, which
+ * is clearer than a glyph most people would not recognise — "AED 1,234.50"
+ * reads better than "د.إ1,234.50", and nobody has to guess.
+ */
+const CURRENCY_SYMBOLS: Record<string, string> = {
+  ZAR: 'R',
+  USD: '$',
+  EUR: '€',
+  GBP: '£',
+  AUD: 'A$',
+  CAD: 'C$',
+  NZD: 'NZ$',
+  JPY: '¥',
+  INR: '₹',
+}
+
+/**
+ * Format integer cents for display, e.g. 123456 -> "R1,234.56".
+ *
+ * Assembled by hand rather than through `toLocaleString`, because the runtime's
+ * locale data is not the same everywhere: Node and Chrome disagree about what
+ * `en-ZA` means, so the identical call produced "R1,234.50" on a server-rendered
+ * page and "R 1 234,50" in a client component. Money that changes shape
+ * depending on which side of the render it landed on is worse than money in a
+ * format you did not pick — and it risks a hydration mismatch for anything
+ * rendered both ways.
+ *
+ * Comma for thousands, full stop for decimals, symbol in front, everywhere.
+ */
 export function formatCents(
   cents: Cents,
   currency: string,
-  options: { showSymbol?: boolean; locale?: string } = {}
+  options: { showSymbol?: boolean } = {}
 ): string {
   assertValidCents(cents)
-  const { showSymbol = true, locale = 'en-ZA' } = options
-  const places = decimalPlaces(currency)
-  const value = cents / minorUnitScale(currency)
+  const { showSymbol = true } = options
 
-  if (!showSymbol) {
-    return value.toLocaleString(locale, {
-      minimumFractionDigits: places,
-      maximumFractionDigits: places,
-    })
-  }
+  const code = currency.toUpperCase()
+  const places = decimalPlaces(code)
+  const scale = minorUnitScale(code)
 
-  try {
-    return value.toLocaleString(locale, {
-      style: 'currency',
-      currency: currency.toUpperCase(),
-      minimumFractionDigits: places,
-      maximumFractionDigits: places,
-    })
-  } catch {
-    // Unknown currency code — fall back to a plain number with the code appended.
-    const formatted = value.toLocaleString(locale, {
-      minimumFractionDigits: places,
-      maximumFractionDigits: places,
-    })
-    return `${currency.toUpperCase()} ${formatted}`
-  }
+  // Integer arithmetic throughout: dividing by 100 first would reintroduce the
+  // float rounding this module exists to avoid.
+  const negative = cents < 0
+  const absolute = Math.abs(cents)
+  const whole = Math.trunc(absolute / scale)
+  const fraction = absolute - whole * scale
+
+  const grouped = String(whole).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+  const digits =
+    places === 0 ? grouped : `${grouped}.${String(fraction).padStart(places, '0')}`
+
+  const sign = negative ? '-' : ''
+  if (!showSymbol) return `${sign}${digits}`
+
+  const symbol = CURRENCY_SYMBOLS[code]
+  return symbol ? `${sign}${symbol}${digits}` : `${sign}${code} ${digits}`
 }
 
 /** Sum a list of cent amounts, validating each. */

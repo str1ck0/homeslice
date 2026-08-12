@@ -5,7 +5,7 @@ _Last updated: 12 August 2026._
 **Live:** https://homeslice-liam-stricklands-projects.vercel.app
 **Repo:** `master`, clean.
 **Database:** Supabase project `zwnhbhymjaqjpuxfcbam` (eu-west-1), active.
-**Tests:** 105 unit + 45 integration, all passing.
+**Tests:** 109 unit + 49 integration, all passing.
 
 ---
 
@@ -26,8 +26,11 @@ The core Splitwise loop is done and has been used by two real people.
   friends, remove members, leave, delete. No type enum: every group can do
   everything, and no currency either — a group runs in as many currencies as
   your trip does.
-- **Expenses** — payer, five split types (equal, exact, percent, shares,
-  adjustment) with a live preview, category, date, multiple photos, edit, delete.
+- **Expenses** — category, date, multiple photos, edit, delete. Who paid and how
+  it splits are one control: a sheet naming each common arrangement as a
+  sentence with the money spelled out ("You paid, split equally — Sam owes you
+  R411.50"), with the five split types and per-person selection behind "More
+  options".
 - **Balances** — per person, per group, per currency, with breakdown lines
   ("you owe Sam R878.91 in Cape Town"). No currency conversion, ever.
 - **Settle up** — from a group or a friend, with the outstanding amount
@@ -73,6 +76,7 @@ group can never end up with nobody able to rename or delete it.
 1. **Search and filter** on expenses — the first thing that hurts once a group
    has fifty of them.
 2. **Hide settled-up friends and groups** behind a "show N settled" toggle.
+
 Then, in rough order: **user-created categories** · a **debt-simplification
 toggle** (`groups.simplify_debts` is read at settle-up time but nothing sets it)
 · **multi-payer UI** (the service handles it; the form offers one payer and
@@ -117,6 +121,15 @@ re-render too. Nineteen identical "Euro 26" groups came from exactly this. Use a
 `useRef`, which updates immediately. Fixed in the group form, the expense form
 and the settle form; `AuthForm` and `reset-password` still have the pattern,
 deliberately, because a repeat there is idempotent or harmless.
+
+**Never format money with `toLocaleString`.** The runtime's locale data is not
+the same everywhere: `en-ZA` renders 123450 cents as "R1,234.50" under Node and
+"R 1 234,50" in Chrome, so the same expense looked different on a
+server-rendered page and in a client component — and anything rendered both ways
+risks a hydration mismatch. `formatCents` now assembles the string itself from
+the integer cents: comma for thousands, full stop for decimals, symbol in front.
+The money tests assert exact strings for that reason; the older ones checked
+only that the output contained "234", which is how the drift went unnoticed.
 
 **A successful Server Action that redirects has not navigated yet** when its
 promise settles. Leave the button disabled rather than restoring it, or it comes

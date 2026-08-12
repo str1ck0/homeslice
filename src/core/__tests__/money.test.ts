@@ -68,21 +68,55 @@ describe('decimalPlaces', () => {
 })
 
 describe('formatCents', () => {
-  it('formats with the currency symbol', () => {
-    expect(formatCents(123456, 'ZAR')).toContain('1')
-    expect(formatCents(123456, 'ZAR')).toContain('234')
+  /**
+   * These assert the exact string on purpose. The previous versions checked
+   * only that the output contained "234", which is what let the format drift:
+   * `toLocaleString('en-ZA')` renders "R1,234.50" under Node and "R 1 234,50"
+   * in Chrome, so the same expense looked different on a server-rendered page
+   * and in a client component, and no test noticed.
+   */
+  it('puts the symbol in front, commas between thousands, a full stop before cents', () => {
+    expect(formatCents(123456, 'ZAR')).toBe('R1,234.56')
+    expect(formatCents(123456, 'EUR')).toBe('€1,234.56')
+    expect(formatCents(123456, 'GBP')).toBe('£1,234.56')
+  })
+
+  it('formats the same regardless of how large the number is', () => {
+    expect(formatCents(1, 'ZAR')).toBe('R0.01')
+    expect(formatCents(99, 'ZAR')).toBe('R0.99')
+    expect(formatCents(100, 'ZAR')).toBe('R1.00')
+    expect(formatCents(100000, 'ZAR')).toBe('R1,000.00')
+    expect(formatCents(123456789012, 'ZAR')).toBe('R1,234,567,890.12')
   })
 
   it('formats without a symbol when asked', () => {
-    expect(formatCents(123456, 'ZAR', { showSymbol: false, locale: 'en-US' })).toBe('1,234.56')
+    expect(formatCents(123456, 'ZAR', { showSymbol: false })).toBe('1,234.56')
+  })
+
+  it('keeps a negative sign outside the symbol', () => {
+    expect(formatCents(-123456, 'ZAR')).toBe('-R1,234.56')
+    expect(formatCents(-50, 'ZAR', { showSymbol: false })).toBe('-0.50')
   })
 
   it('omits decimals for yen', () => {
-    expect(formatCents(1200, 'JPY', { showSymbol: false, locale: 'en-US' })).toBe('1,200')
+    expect(formatCents(1200, 'JPY')).toBe('¥1,200')
+    expect(formatCents(1200, 'JPY', { showSymbol: false })).toBe('1,200')
+  })
+
+  it('shows the code for currencies with no symbol worth printing', () => {
+    expect(formatCents(123456, 'AED')).toBe('AED 1,234.56')
+    expect(formatCents(123456, 'CHF')).toBe('CHF 1,234.56')
   })
 
   it('falls back gracefully on an unknown currency code', () => {
-    expect(formatCents(1000, 'XYZ', { locale: 'en-US' })).toContain('XYZ')
+    expect(formatCents(1000, 'XYZ')).toBe('XYZ 10.00')
+  })
+
+  it('round-trips through the parser', () => {
+    for (const cents of [1, 99, 100, 12345, 123456789012]) {
+      const shown = formatCents(cents, 'ZAR', { showSymbol: false })
+      expect(parseAmountToCents(shown, 'ZAR')).toBe(cents)
+    }
   })
 
   it('rejects fractional cents', () => {
