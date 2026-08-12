@@ -8,6 +8,7 @@ import { formatCents, parseAmountToCents } from '@/core/money'
 export interface Member {
   id: string
   name: string
+  avatarUrl: string | null
 }
 
 export interface SplitState {
@@ -260,6 +261,7 @@ export default function SplitChooser({
               {shortcuts.map((option) => {
                 const result = consequence(option.state)
                 const selected = matches(option.state)
+                const payer = members.find((m) => m.id === option.state.payerId)
 
                 return (
                   <li key={option.key}>
@@ -274,11 +276,8 @@ export default function SplitChooser({
                         }`}
                       >
                         <Avatar
-                          name={
-                            option.state.payerId === currentProfileId
-                              ? (me?.name ?? 'You')
-                              : (members.find((m) => m.id === option.state.payerId)?.name ?? '?')
-                          }
+                          name={payer?.name ?? 'You'}
+                          url={payer?.avatarUrl ?? null}
                           size={40}
                         />
                       </span>
@@ -386,7 +385,7 @@ export default function SplitChooser({
                         aria-pressed={isSelected}
                         className="flex min-w-0 flex-1 items-center gap-3 text-left"
                       >
-                        <Avatar name={member.name} size={32} />
+                        <Avatar name={member.name} url={member.avatarUrl} size={32} />
                         <span className="truncate text-sm font-medium">
                           {member.id === currentProfileId ? 'You' : member.name}
                         </span>

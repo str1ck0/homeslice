@@ -26,11 +26,11 @@ The core Splitwise loop is done and has been used by two real people.
   friends, remove members, leave, delete. No type enum: every group can do
   everything, and no currency either — a group runs in as many currencies as
   your trip does.
-- **Expenses** — category, date, multiple photos, edit, delete. Who paid and how
-  it splits are one control: a sheet naming each common arrangement as a
-  sentence with the money spelled out ("You paid, split equally — Sam owes you
-  R411.50"), with the five split types and per-person selection behind "More
-  options".
+- **Expenses** — adding one asks who it is with first, then the details:
+  category, date, multiple photos, edit, delete. Who paid and how it splits are
+  a single control, a sheet naming each common arrangement as a sentence with the
+  money spelled out ("You paid, split equally — Sam owes you R411.50"), with the
+  five split types and per-person tweaks behind "More options".
 - **Balances** — per person, per group, per currency, with breakdown lines
   ("you owe Sam R878.91 in Cape Town"). No currency conversion, ever.
 - **Settle up** — from a group or a friend, with the outstanding amount

@@ -39,10 +39,25 @@ export default async function NewExpensePage({
     <ExpenseForm
       currentProfileId={profile.id}
       currentProfileName={profile.display_name}
+      currentProfileAvatarUrl={profile.avatar_url}
       initialGroupId={groupId ?? null}
-      groups={groups.map((g) => ({ id: g.id, name: g.name, currency: g.currency }))}
-      groupMembers={members.map((m) => ({ id: m.profileId, name: m.displayName }))}
-      friends={friends.map((f) => ({ id: f.profileId, name: f.displayName }))}
+      groups={groups.map((g) => ({
+        id: g.id,
+        name: g.name,
+        currency: g.currency,
+        avatarUrl: g.avatarUrl,
+        memberCount: g.memberCount,
+      }))}
+      groupMembers={members.map((m) => ({
+        id: m.profileId,
+        name: m.displayName,
+        avatarUrl: m.avatarUrl,
+      }))}
+      friends={friends.map((f) => ({
+        id: f.profileId,
+        name: f.displayName,
+        avatarUrl: f.avatarUrl,
+      }))}
       defaultCurrency={defaultCurrency}
       categories={categoriesResult.data ?? []}
     />

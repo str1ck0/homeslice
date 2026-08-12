@@ -187,7 +187,7 @@ export async function listExpenses(
     .select(
       `id, description, amount_cents, currency, expense_date,
        categories(name),
-       expense_participants(profile_id, paid_cents, owed_cents, profiles(display_name)),
+       expense_participants(profile_id, paid_cents, owed_cents, profiles(display_name, avatar_url)),
        expense_images(count)`
     )
     .is('deleted_at', null)
@@ -204,7 +204,7 @@ export async function listExpenses(
       profile_id: string
       paid_cents: number
       owed_cents: number
-      profiles: { display_name: string } | null
+      profiles: { display_name: string; avatar_url: string | null } | null
     }[]
 
     const mine = participants.find((p) => p.profile_id === profileId)
@@ -242,6 +242,7 @@ export interface ExpenseDetail {
   participants: {
     profileId: string
     displayName: string
+    avatarUrl: string | null
     paidCents: number
     owedCents: number
   }[]
@@ -258,7 +259,7 @@ export async function getExpense(expenseId: string): Promise<ExpenseDetail | nul
        created_by,
        categories(name),
        author:profiles!expenses_created_by_fkey(display_name),
-       expense_participants(profile_id, paid_cents, owed_cents, profiles(display_name)),
+       expense_participants(profile_id, paid_cents, owed_cents, profiles(display_name, avatar_url)),
        expense_images(id, sort_order)`
     )
     .eq('id', expenseId)
@@ -271,7 +272,7 @@ export async function getExpense(expenseId: string): Promise<ExpenseDetail | nul
     profile_id: string
     paid_cents: number
     owed_cents: number
-    profiles: { display_name: string } | null
+    profiles: { display_name: string; avatar_url: string | null } | null
   }[]
 
   const images = (data.expense_images ?? []) as unknown as {
@@ -295,6 +296,7 @@ export async function getExpense(expenseId: string): Promise<ExpenseDetail | nul
     participants: participants.map((p) => ({
       profileId: p.profile_id,
       displayName: p.profiles?.display_name ?? 'Someone',
+      avatarUrl: p.profiles?.avatar_url ?? null,
       paidCents: p.paid_cents,
       owedCents: p.owed_cents,
     })),
@@ -333,7 +335,7 @@ export async function listExpensesWithPerson(
     .select(
       `id, description, amount_cents, currency, expense_date,
        categories(name),
-       expense_participants(profile_id, paid_cents, owed_cents, profiles(display_name)),
+       expense_participants(profile_id, paid_cents, owed_cents, profiles(display_name, avatar_url)),
        expense_images(count)`
     )
     .in('id', ids)
@@ -349,7 +351,7 @@ export async function listExpensesWithPerson(
         profile_id: string
         paid_cents: number
         owed_cents: number
-        profiles: { display_name: string } | null
+        profiles: { display_name: string; avatar_url: string | null } | null
       }[]
 
       const mine = participants.find((p) => p.profile_id === profileId)

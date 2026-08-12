@@ -73,7 +73,7 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
         <Card className="divide-y divide-edge">
           {expense.participants.map((participant) => (
             <div key={participant.profileId} className="flex items-center gap-3 p-4">
-              <Avatar name={participant.displayName} size={36} />
+              <Avatar name={participant.displayName} url={participant.avatarUrl} size={36} />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">
                   {participant.displayName}

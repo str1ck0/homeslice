@@ -82,20 +82,27 @@ export default async function EditExpensePage({
   // Anyone already on the expense must stay selectable, even if they have
   // since left the group — otherwise saving would silently drop them.
   const baseMembers = expense.groupId
-    ? members.map((m) => ({ id: m.profileId, name: m.displayName }))
-    : friends.map((f) => ({ id: f.profileId, name: f.displayName }))
+    ? members.map((m) => ({ id: m.profileId, name: m.displayName, avatarUrl: m.avatarUrl }))
+    : friends.map((f) => ({ id: f.profileId, name: f.displayName, avatarUrl: f.avatarUrl }))
 
   const known = new Set(baseMembers.map((m) => m.id))
   const extras = expense.participants
     .filter((p) => !known.has(p.profileId))
-    .map((p) => ({ id: p.profileId, name: p.displayName }))
+    .map((p) => ({ id: p.profileId, name: p.displayName, avatarUrl: p.avatarUrl }))
 
   return (
     <ExpenseForm
       currentProfileId={profile.id}
       currentProfileName={profile.display_name}
+      currentProfileAvatarUrl={profile.avatar_url}
       initialGroupId={expense.groupId}
-      groups={groups.map((g) => ({ id: g.id, name: g.name, currency: g.currency }))}
+      groups={groups.map((g) => ({
+        id: g.id,
+        name: g.name,
+        currency: g.currency,
+        avatarUrl: g.avatarUrl,
+        memberCount: g.memberCount,
+      }))}
       groupMembers={expense.groupId ? [...baseMembers, ...extras] : []}
       friends={expense.groupId ? [] : [...baseMembers, ...extras]}
       defaultCurrency={expense.currency}

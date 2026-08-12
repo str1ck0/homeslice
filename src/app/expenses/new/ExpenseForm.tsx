@@ -9,11 +9,13 @@ import { formatCents, parseAmountToCents } from '@/core/money'
 import { CURRENCY_CODES } from '@/core/currencies'
 import ImagePicker from '@/components/ImagePicker'
 import SplitChooser, { parseWeight } from './SplitChooser'
+import WithPicker, { type GroupOption } from './WithPicker'
 import { uploadReceipts } from '@/lib/upload'
 
 interface Member {
   id: string
   name: string
+  avatarUrl: string | null
 }
 
 export interface EditingExpense {
@@ -39,6 +41,7 @@ export interface EditingExpense {
 export default function ExpenseForm({
   currentProfileId,
   currentProfileName,
+  currentProfileAvatarUrl,
   initialGroupId,
   groups,
   groupMembers,
@@ -49,8 +52,9 @@ export default function ExpenseForm({
 }: {
   currentProfileId: string
   currentProfileName: string
+  currentProfileAvatarUrl: string | null
   initialGroupId: string | null
-  groups: { id: string; name: string; currency: string }[]
+  groups: (GroupOption & { currency: string })[]
   groupMembers: Member[]
   friends: Member[]
   defaultCurrency: string
@@ -61,17 +65,42 @@ export default function ExpenseForm({
   const [groupId, setGroupId] = useState<string | null>(initialGroupId)
 
   /**
+   * The friends this expense is with, when it belongs to no group. Empty until
+   * the picker has been answered, which is why the picker opens itself.
+   */
+  const [withIds, setWithIds] = useState<string[]>(() =>
+    editing && !initialGroupId
+      ? editing.participantIds.filter((id) => id !== currentProfileId)
+      : []
+  )
+
+  // Straight to the point on a fresh expense: who it is with decides everything
+  // after it. Arriving from a group page has already answered the question.
+  const [pickerOpen, setPickerOpen] = useState(!initialGroupId && !editing)
+
+  /**
    * Who can be split with. Inside a group that is its members; outside one it
    * is your friends. Either way you are always in the list, because an expense
    * you are not part of is not one you would be adding.
    */
   const members: Member[] = useMemo(() => {
-    const base = groupId ? groupMembers : friends
+    const base = groupId ? groupMembers : friends.filter((f) => withIds.includes(f.id))
     const withMe = base.some((m) => m.id === currentProfileId)
       ? base
-      : [{ id: currentProfileId, name: currentProfileName }, ...base]
+      : [
+          { id: currentProfileId, name: currentProfileName, avatarUrl: currentProfileAvatarUrl },
+          ...base,
+        ]
     return withMe
-  }, [groupId, groupMembers, friends, currentProfileId, currentProfileName])
+  }, [
+    groupId,
+    groupMembers,
+    friends,
+    withIds,
+    currentProfileId,
+    currentProfileName,
+    currentProfileAvatarUrl,
+  ])
 
   const [description, setDescription] = useState(editing?.description ?? '')
   const [amount, setAmount] = useState(editing?.amount ?? '')
@@ -97,6 +126,17 @@ export default function ExpenseForm({
   const [error, setError] = useState<string | null>(null)
 
   const participants = members.filter((m) => selected.includes(m.id))
+
+  /** What the "Split with" control says when closed. */
+  const withSummary = useMemo(() => {
+    if (groupId) {
+      return groups.find((g) => g.id === groupId)?.name ?? 'A group'
+    }
+    const names = friends.filter((f) => withIds.includes(f.id)).map((f) => f.name)
+    if (names.length === 0) return 'Nobody yet'
+    if (names.length <= 2) return names.join(' and ')
+    return `${names[0]}, ${names[1]} and ${names.length - 2} more`
+  }, [groupId, groups, friends, withIds])
 
   /**
    * Live preview of the split, computed with the same functions the server
@@ -225,30 +265,22 @@ export default function ExpenseForm({
         </p>
       )}
 
-      <label className="flex flex-col gap-1.5">
-        <span className="text-sm font-medium">Where does this belong?</span>
-        <select
-          disabled={Boolean(editing)}
-          value={groupId ?? ''}
-          onChange={(event) => {
-            setGroupId(event.target.value || null)
-            setTouchedSelection(false)
-            // Suggest the group's usual currency, but never overrule a currency
-            // the user has already picked — on a trip through three countries
-            // that snapping back is the whole problem.
-            const next = groups.find((g) => g.id === event.target.value)
-            if (next && !touchedCurrency) setCurrency(next.currency)
-          }}
-          className="rounded-xl border border-edge bg-raised px-4 py-3 text-base outline-none focus:border-accent disabled:opacity-60"
-        >
-          <option value="">Just friends — no group</option>
-          {groups.map((group) => (
-            <option key={group.id} value={group.id}>
-              {group.name}
-            </option>
-          ))}
-        </select>
-      </label>
+      <button
+        type="button"
+        onClick={() => setPickerOpen(true)}
+        disabled={Boolean(editing)}
+        className="flex w-full items-center justify-between gap-3 rounded-xl border border-edge bg-raised px-4 py-3 text-left transition-colors hover:border-accent disabled:opacity-60"
+      >
+        <span className="min-w-0">
+          <span className="block text-xs text-muted">Split with</span>
+          <span className="block truncate text-base font-medium">{withSummary}</span>
+        </span>
+        {!editing && (
+          <span aria-hidden className="shrink-0 text-muted">
+            ›
+          </span>
+        )}
+      </button>
 
       <label className="flex flex-col gap-1.5">
         <span className="text-sm font-medium">What was it?</span>
@@ -271,10 +303,10 @@ export default function ExpenseForm({
             required
             inputMode="decimal"
             placeholder="0.00"
-            className="amount rounded-xl border border-edge bg-raised px-4 py-3 text-xl font-semibold outline-none focus:border-accent"
+            className="amount h-14 rounded-xl border border-edge bg-raised px-4 text-xl font-semibold outline-none focus:border-accent"
           />
         </label>
-        <label className="flex w-28 flex-col gap-1.5">
+        <label className="flex w-32 shrink-0 flex-col gap-1.5">
           <span className="text-sm font-medium">Currency</span>
           <select
             value={currency}
@@ -282,7 +314,7 @@ export default function ExpenseForm({
               setTouchedCurrency(true)
               setCurrency(event.target.value)
             }}
-            className="rounded-xl border border-edge bg-raised px-3 py-3 text-base outline-none focus:border-accent"
+            className="h-14 rounded-xl border border-edge bg-raised px-3 text-base outline-none focus:border-accent"
           >
             {CURRENCY_CODES.map((code) => (
               <option key={code} value={code}>
@@ -300,7 +332,7 @@ export default function ExpenseForm({
             type="date"
             value={expenseDate}
             onChange={(event) => setExpenseDate(event.target.value)}
-            className="rounded-xl border border-edge bg-raised px-4 py-3 text-base outline-none focus:border-accent"
+            className="h-14 rounded-xl border border-edge bg-raised px-4 text-base outline-none focus:border-accent"
           />
         </label>
         <label className="flex flex-1 flex-col gap-1.5">
@@ -308,7 +340,7 @@ export default function ExpenseForm({
           <select
             value={categoryId}
             onChange={(event) => setCategoryId(event.target.value)}
-            className="rounded-xl border border-edge bg-raised px-4 py-3 text-base outline-none focus:border-accent"
+            className="h-14 rounded-xl border border-edge bg-raised px-4 text-base outline-none focus:border-accent"
           >
             <option value="">None</option>
             {categories.map((category) => (
@@ -353,6 +385,29 @@ export default function ExpenseForm({
           }}
         />
       )}
+
+      <WithPicker
+        groups={groups}
+        friends={friends}
+        groupId={groupId}
+        withIds={withIds}
+        open={pickerOpen}
+        canClose={groupId !== null || withIds.length > 0}
+        onClose={() => setPickerOpen(false)}
+        onApply={({ groupId: nextGroupId, withIds: nextWithIds }) => {
+          setGroupId(nextGroupId)
+          setWithIds(nextWithIds)
+          // A new cast means the old selection means nothing.
+          setTouchedSelection(false)
+          setPickerOpen(false)
+
+          // Suggest the group's usual currency, but never overrule one already
+          // chosen by hand — on a trip through three countries that snapping
+          // back is the whole problem.
+          const group = groups.find((g) => g.id === nextGroupId)
+          if (group && !touchedCurrency) setCurrency(group.currency)
+        }}
+      />
 
       <ImagePicker files={images} onChange={setImages} />
 
