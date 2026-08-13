@@ -154,13 +154,6 @@ export function PageShell({
   )
 }
 
-/**
- * A multi-currency total, written the way Splitwise writes it:
- * "you owe ZAR 2,823.16 + EUR 356.98".
- *
- * Currencies are never converted, so several can be outstanding at once and
- * joining them with "+" is more honest than picking one to display.
- */
 /** Split a signed per-currency map into what you are owed and what you owe. */
 export function splitByDirection(totals: Map<string, number>) {
   const owed = new Map<string, number>()
@@ -198,7 +191,10 @@ export function BalanceSummary({
     return <p className={`text-sm text-muted ${className}`}>You&rsquo;re all square.</p>
   }
 
-  const amountClass = size === 'lg' ? 'text-3xl font-bold' : 'text-base font-semibold'
+  // Two long amounts in one direction outgrew text-3xl on a phone and ran off
+  // the edge; this leaves room for a second currency without shrinking the
+  // single-currency case into insignificance.
+  const amountClass = size === 'lg' ? 'text-2xl font-bold' : 'text-base font-semibold'
 
   return (
     <div className={`flex flex-col ${size === 'lg' ? 'gap-3' : 'gap-1'} ${className}`}>
@@ -208,7 +204,7 @@ export function BalanceSummary({
           <CurrencyTotals
             totals={owing}
             forceDirection="owing"
-            className={`amount ${amountClass}`}
+            className={amountClass}
           />
         </p>
       )}
@@ -218,7 +214,7 @@ export function BalanceSummary({
           <CurrencyTotals
             totals={owed}
             forceDirection="owed"
-            className={`amount ${amountClass}`}
+            className={amountClass}
           />
         </p>
       )}
@@ -245,19 +241,28 @@ export function PersonBalance({
       {owed.size > 0 && (
         <div>
           <p className="text-xs text-muted">{owesYouLabel}</p>
-          <CurrencyTotals totals={owed} forceDirection="owed" className="amount font-semibold" />
+          <CurrencyTotals totals={owed} forceDirection="owed" className="font-semibold" />
         </div>
       )}
       {owing.size > 0 && (
         <div>
           <p className="text-xs text-muted">you owe</p>
-          <CurrencyTotals totals={owing} forceDirection="owing" className="amount font-semibold" />
+          <CurrencyTotals totals={owing} forceDirection="owing" className="font-semibold" />
         </div>
       )}
     </div>
   )
 }
 
+/**
+ * Several currencies running the same way, joined with "+".
+ *
+ * Currencies are never converted, so more than one can be outstanding at once.
+ * The "+" is safe here and only here: everything in this list points the same
+ * direction, because the callers split by direction first. Each figure carries
+ * `amount` so it never breaks mid-number, while the list itself is free to wrap
+ * — two long amounts used to run straight off a phone screen.
+ */
 export function CurrencyTotals({
   totals,
   className = '',
@@ -279,12 +284,13 @@ export function CurrencyTotals({
     <span className={className}>
       {entries.map(([currency, cents], index) => (
         <span key={currency}>
-          {index > 0 && <span className="text-muted"> and </span>}
+          {index > 0 && <span className="text-muted"> + </span>}
           <span
             className={
-              (forceDirection ?? (cents > 0 ? 'owed' : 'owing')) === 'owed'
+              'amount ' +
+              ((forceDirection ?? (cents > 0 ? 'owed' : 'owing')) === 'owed'
                 ? 'text-positive'
-                : 'text-negative'
+                : 'text-negative')
             }
           >
             {formatCents(Math.abs(cents), currency)}
