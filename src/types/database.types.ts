@@ -214,6 +214,48 @@ export type Database = {
           },
         ]
       }
+      expense_events: {
+        Row: {
+          actor_id: string
+          changes: string[]
+          created_at: string
+          expense_id: string
+          id: string
+          kind: string
+        }
+        Insert: {
+          actor_id: string
+          changes?: string[]
+          created_at?: string
+          expense_id: string
+          id?: string
+          kind: string
+        }
+        Update: {
+          actor_id?: string
+          changes?: string[]
+          created_at?: string
+          expense_id?: string
+          id?: string
+          kind?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expense_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "expense_events_expense_id_fkey"
+            columns: ["expense_id"]
+            isOneToOne: false
+            referencedRelation: "expenses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       expense_images: {
         Row: {
           created_at: string

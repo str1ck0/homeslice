@@ -575,6 +575,157 @@ describeIntegration('group membership and deletion', () => {
     })
   })
 
+  describe('a shared expense belongs to everyone in it', () => {
+    let groupId: string
+    let expenseId: string
+
+    beforeAll(async () => {
+      groupId = await newGroup('Shared Editing')
+      await owner.client.rpc('add_group_member', {
+        p_group_id: groupId,
+        p_profile_id: friend.profileId,
+      })
+
+      // Owner enters it; friend is in the split but did not create it.
+      const { data, error } = await owner.client.rpc('create_expense', {
+        p_group_id: groupId,
+        p_description: 'cerveza',
+        p_amount_cents: 300,
+        p_currency: 'EUR',
+        p_expense_date: '2026-08-13',
+        p_split_type: 'equal',
+        p_category_id: null,
+        p_note: null,
+        p_participants: [
+          { profile_id: owner.profileId, paid_cents: 300, owed_cents: 150, split_weight: 1 },
+          { profile_id: friend.profileId, paid_cents: 0, owed_cents: 150, split_weight: 1 },
+        ],
+      })
+      if (error) throw error
+      expenseId = data as string
+    }, 60_000)
+
+    it('lets a participant who did not create it edit the amount', async () => {
+      const { error } = await friend.client.rpc('update_expense', {
+        p_expense_id: expenseId,
+        p_description: 'cerveza',
+        p_amount_cents: 500,
+        p_currency: 'EUR',
+        p_expense_date: '2026-08-13',
+        p_split_type: 'equal',
+        p_category_id: null,
+        p_note: null,
+        p_participants: [
+          { profile_id: owner.profileId, paid_cents: 500, owed_cents: 250, split_weight: 1 },
+          { profile_id: friend.profileId, paid_cents: 0, owed_cents: 250, split_weight: 1 },
+        ],
+      })
+      expect(error).toBeNull()
+
+      const { data } = await admin!
+        .from('expenses')
+        .select('amount_cents')
+        .eq('id', expenseId)
+        .single()
+      expect(data!.amount_cents).toBe(500)
+    })
+
+    it('still keeps a stranger out', async () => {
+      const { data } = await stranger.client
+        .from('expenses')
+        .update({ description: 'Tampered' })
+        .eq('id', expenseId)
+        .select('id')
+
+      expect(data ?? []).toEqual([])
+
+      const { data: still } = await admin!
+        .from('expenses')
+        .select('description')
+        .eq('id', expenseId)
+        .single()
+      expect(still!.description).toBe('cerveza')
+    })
+
+    it('records who changed what, readable by everyone in the expense', async () => {
+      const { error } = await friend.client.from('expense_events').insert({
+        expense_id: expenseId,
+        actor_id: friend.profileId,
+        kind: 'updated',
+        changes: ['Amount changed from €3.00 to €5.00'],
+      })
+      expect(error).toBeNull()
+
+      // The other participant can read it — that is the whole point.
+      const { data } = await owner.client
+        .from('expense_events')
+        .select('kind, changes')
+        .eq('expense_id', expenseId)
+
+      expect(data!.length).toBeGreaterThan(0)
+      expect(data!.some((e) => e.changes?.[0]?.includes('€3.00 to €5.00'))).toBe(true)
+    })
+
+    it('will not let anyone sign the record as somebody else', async () => {
+      const { error } = await friend.client.from('expense_events').insert({
+        expense_id: expenseId,
+        actor_id: owner.profileId,
+        kind: 'updated',
+        changes: ['Framed'],
+      })
+      expect(error).not.toBeNull()
+    })
+
+    it('will not let anyone rewrite or erase the record', async () => {
+      const { data: rows } = await friend.client
+        .from('expense_events')
+        .select('id')
+        .eq('expense_id', expenseId)
+        .limit(1)
+      const eventId = rows![0].id
+
+      const { data: updated } = await friend.client
+        .from('expense_events')
+        .update({ changes: ['Nothing to see here'] })
+        .eq('id', eventId)
+        .select('id')
+      expect(updated ?? []).toEqual([])
+
+      const { data: deleted } = await friend.client
+        .from('expense_events')
+        .delete()
+        .eq('id', eventId)
+        .select('id')
+      expect(deleted ?? []).toEqual([])
+
+      const { data: still } = await admin!
+        .from('expense_events')
+        .select('id')
+        .eq('id', eventId)
+      expect(still).toHaveLength(1)
+    })
+
+    it('hides the record from someone outside the expense', async () => {
+      const { data } = await stranger.client
+        .from('expense_events')
+        .select('id')
+        .eq('expense_id', expenseId)
+      expect(data ?? []).toEqual([])
+    })
+
+    it('lets a participant delete it', async () => {
+      const { data, error } = await friend.client
+        .from('expenses')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', expenseId)
+        .is('deleted_at', null)
+        .select('id')
+
+      expect(error).toBeNull()
+      expect(data).toHaveLength(1)
+    })
+  })
+
   describe('avatar storage', () => {
     // A one-pixel JPEG is enough; this is about who may write where.
     const pixel = Buffer.from(

@@ -11,7 +11,7 @@ import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { requireProfile } from './session'
 import { SPLIT_TYPES, splitExpense, type SplitType } from '@/core/split'
-import { parseAmountToCents } from '@/core/money'
+import { formatCents, parseAmountToCents, type Cents } from '@/core/money'
 
 const participantSchema = z.object({
   profileId: z.string().uuid(),
@@ -92,7 +92,7 @@ export function buildParticipantRows(input: ExpenseInput) {
 
 export async function createExpense(input: ExpenseInput): Promise<string> {
   const parsed = expenseInputSchema.parse(input)
-  await requireProfile()
+  const me = await requireProfile()
 
   const { amountCents, rows } = buildParticipantRows(parsed)
   const supabase = await createClient()
@@ -124,15 +124,94 @@ export async function createExpense(input: ExpenseInput): Promise<string> {
     if (imageError) console.error('Failed to attach images:', imageError.message)
   }
 
+  await recordEvent(expenseId, me.id, 'added')
+
   return expenseId
+}
+
+/**
+ * What changed, said in the words a person would use.
+ *
+ * Only differences worth reading: nobody needs "Split type changed from equal
+ * to equal". Amounts are rendered with the same formatter as everywhere else,
+ * which is why this is computed here rather than in a trigger.
+ */
+function describeChanges(before: ExpenseDetail, after: ExpenseInput, afterCents: Cents): string[] {
+  const lines: string[] = []
+
+  if (before.description !== after.description) {
+    lines.push(`Renamed from “${before.description}” to “${after.description}”`)
+  }
+
+  if (before.currency !== after.currency) {
+    lines.push(
+      `Currency changed from ${before.currency} to ${after.currency}` +
+        ` (${formatCents(before.amountCents, before.currency)} → ${formatCents(afterCents, after.currency)})`
+    )
+  } else if (before.amountCents !== afterCents) {
+    lines.push(
+      `Amount changed from ${formatCents(before.amountCents, before.currency)}` +
+        ` to ${formatCents(afterCents, after.currency)}`
+    )
+  }
+
+  if (before.expenseDate !== after.expenseDate) {
+    lines.push(`Date changed from ${before.expenseDate} to ${after.expenseDate}`)
+  }
+
+  const beforeShares = new Map(before.participants.map((p) => [p.profileId, p.owedCents]))
+  const beforeNames = new Map(before.participants.map((p) => [p.profileId, p.displayName]))
+  const afterIds = new Set(after.participants.map((p) => p.profileId))
+
+  const removed = [...beforeShares.keys()].filter(
+    (id) => !afterIds.has(id) && (beforeShares.get(id) ?? 0) !== 0
+  )
+  const added = [...afterIds].filter((id) => !beforeShares.has(id))
+
+  for (const id of removed) lines.push(`${beforeNames.get(id) ?? 'Someone'} taken off the split`)
+  if (added.length > 0) lines.push(`${added.length} more added to the split`)
+
+  const beforePayers = before.participants.filter((p) => p.paidCents > 0).map((p) => p.profileId)
+  const afterPayers = after.payers.map((p) => p.profileId)
+  const payerChanged =
+    beforePayers.length !== afterPayers.length ||
+    beforePayers.some((id) => !afterPayers.includes(id))
+  if (payerChanged) lines.push('Who paid changed')
+
+  if (lines.length === 0 && before.splitType !== after.splitType) {
+    lines.push('How it splits changed')
+  }
+
+  return lines
+}
+
+/** Append to the record. Never throws: losing the note must not lose the edit. */
+async function recordEvent(
+  expenseId: string,
+  actorId: string,
+  kind: 'added' | 'updated' | 'deleted' | 'restored',
+  changes: string[] = []
+): Promise<void> {
+  try {
+    const supabase = await createClient()
+    const { error } = await supabase
+      .from('expense_events')
+      .insert({ expense_id: expenseId, actor_id: actorId, kind, changes })
+    if (error) console.error('Could not record expense event:', error.message)
+  } catch (error) {
+    console.error('Could not record expense event:', error)
+  }
 }
 
 export async function updateExpense(expenseId: string, input: ExpenseInput): Promise<string> {
   const parsed = expenseInputSchema.parse(input)
-  await requireProfile()
+  const me = await requireProfile()
 
   const { amountCents, rows } = buildParticipantRows(parsed)
   const supabase = await createClient()
+
+  // Read it first, so the record can say what actually changed.
+  const before = await getExpense(expenseId)
 
   const { error } = await supabase.rpc('update_expense', {
     p_expense_id: expenseId,
@@ -147,20 +226,36 @@ export async function updateExpense(expenseId: string, input: ExpenseInput): Pro
   } as never)
 
   if (error) throw new Error(error.message)
+
+  if (before) {
+    const changes = describeChanges(before, parsed, amountCents)
+    if (changes.length > 0) await recordEvent(expenseId, me.id, 'updated', changes)
+  }
+
   return expenseId
 }
 
-/** Soft delete, so it can be restored and still shows in the activity feed. */
+/**
+ * Soft delete. The row survives so the balances it produced can be explained,
+ * and so it can be brought back.
+ */
 export async function deleteExpense(expenseId: string): Promise<void> {
-  await requireProfile()
+  const me = await requireProfile()
   const supabase = await createClient()
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('expenses')
     .update({ deleted_at: new Date().toISOString() })
     .eq('id', expenseId)
+    .is('deleted_at', null)
+    .select('id')
 
   if (error) throw new Error(error.message)
+  if (!data || data.length === 0) {
+    throw new Error('Only someone in this expense can delete it')
+  }
+
+  await recordEvent(expenseId, me.id, 'deleted')
 }
 
 export interface ExpenseListItem {
@@ -223,6 +318,43 @@ export async function listExpenses(
       yourPaidCents: mine?.paid_cents ?? 0,
       imageCount:
         (expense.expense_images as unknown as { count: number }[] | null)?.[0]?.count ?? 0,
+    }
+  })
+}
+
+export interface ExpenseEvent {
+  id: string
+  kind: string
+  actorName: string
+  actorAvatarUrl: string | null
+  changes: string[]
+  createdAt: string
+}
+
+/** Who has touched this expense, oldest first. */
+export async function listExpenseEvents(expenseId: string): Promise<ExpenseEvent[]> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('expense_events')
+    .select('id, kind, changes, created_at, profiles!inner(display_name, avatar_url)')
+    .eq('expense_id', expenseId)
+    .order('created_at')
+
+  if (error) throw new Error(error.message)
+
+  return (data ?? []).map((row) => {
+    const actor = row.profiles as unknown as {
+      display_name: string
+      avatar_url: string | null
+    }
+    return {
+      id: row.id,
+      kind: row.kind,
+      actorName: actor?.display_name ?? 'Someone',
+      actorAvatarUrl: actor?.avatar_url ?? null,
+      changes: row.changes ?? [],
+      createdAt: row.created_at,
     }
   })
 }

@@ -2,6 +2,14 @@
 
 **Goal:** a free, self-hosted replacement for Splitwise with full feature parity, wrapped in a sharehouse-admin product. Web + installable PWA first, iOS/Android App Store later.
 
+> **Read `docs/STATUS.md` first.** This plan was written on 11 August 2026,
+> before any of it was built. M0 and M1 are essentially complete, and four of
+> its decisions have since been reversed by choice — placeholder people and
+> usernames are gone, a group's currency is only a suggestion, and shadcn/ui was
+> never adopted. Where this document and STATUS.md disagree, STATUS.md is what
+> the code does. The reasoning below is still worth reading; the checklists are
+> not current.
+
 **Status:** the previous Supabase project (`zwnhbhymjaqjpuxfcbam`) no longer exists — DNS returns NXDOMAIN, so data, auth users, storage and the applied RLS state are all gone. `homeslice.vercel.app` still serves the frontend but every data call fails. We are rebuilding the backend from scratch, which is fortunate timing: it lets us fix the schema decisions that block cost-splitting without any migration pain.
 
 ---

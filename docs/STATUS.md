@@ -1,11 +1,11 @@
 # Homeslice — where things stand
 
-_Last updated: 12 August 2026._
+_Last updated: 13 August 2026._
 
 **Live:** https://homeslice-liam-stricklands-projects.vercel.app
 **Repo:** `master`, clean.
 **Database:** Supabase project `zwnhbhymjaqjpuxfcbam` (eu-west-1), active.
-**Tests:** 109 unit + 49 integration, all passing.
+**Tests:** 109 unit + 56 integration, all passing.
 
 ---
 
@@ -26,6 +26,14 @@ The core Splitwise loop is done and has been used by two real people.
   friends, remove members, leave, delete. No type enum: every group can do
   everything, and no currency either — a group runs in as many currencies as
   your trip does.
+- **Shared editing** — anyone in an expense can edit or delete it, not just
+  whoever typed it in, and every add, edit and delete is recorded on the expense
+  with who did it and what changed. The record is append-only: a participant can
+  correct the expense but cannot quietly rewrite the history of having done so.
+  The reasoning, so it does not get "fixed" later: the app is a ledger, not an
+  auditor. Sam telling you the beers were €5 and not €3 should not mean asking
+  Sam to go and change it. If somebody edits to cheat a friend that is a problem
+  between them — and a visible one.
 - **Expenses** — adding one asks who it is with first, then the details:
   category, date, multiple photos, edit, delete. Who paid and how it splits are
   a single control, a sheet naming each common arrangement as a sentence with the
@@ -71,20 +79,65 @@ than deleting: expenses and the balances that came from them survive.
 Leaving as the last admin promotes the longest-standing remaining member, so a
 group can never end up with nobody able to rename or delete it.
 
+## Where this sits against the implementation plan
+
+**M0 — Foundation: done, with three deliberate omissions.** Supabase project,
+one baseline migration, seeded categories, three storage buckets, generated
+types, cookie auth and middleware are all in place. Not done, and each is a
+choice rather than an oversight: **shadcn/ui** was never adopted — the UI is
+hand-rolled Tailwind and has not suffered for it; **Playwright** was never
+installed, so there are no end-to-end tests; **GitHub Actions CI** does not
+exist, so nothing runs on push but a person.
+
+**M1 — The core splitter: effectively done.** Auth, profiles with avatars and a
+default currency, friends, groups, expense create/edit/delete with all five
+split types, multiple photos, per-currency balances, settle-up, mobile-first
+PWA, and the unit suite over `src/core`. This is past the "I can cancel
+Splitwise" bar and has been used by real people for two days.
+
+Three M1 items remain unbuilt: **user-created categories** (the seeded ones
+exist, adding your own does not), the **debt-simplification toggle**
+(`groups.simplify_debts` is read at settle-up but nothing writes it), and the
+**multi-payer UI** (the service handles several payers; the form offers one and
+refuses to *edit* a multi-payer expense rather than flatten it silently).
+
+**M2 — Daily driver: started sideways.** The plan's activity feed was cut, then
+partly arrived anyway as the per-expense record and the Recent list on the
+dashboard, which is as much feed as this app seems to want. Search and filter,
+recurring expenses, CSV export and charts are untouched. Comments on expenses
+are untouched, though `expense_events` is now the obvious place to hang them.
+
+**M3 (house-admin), M4 (PWA hardening) and M5 (App Store): untouched.**
+
+### Where the plan is now wrong
+
+Read §3.1 and §8 of the implementation plan with these in mind — the code is
+right and the plan is stale:
+
+- **Placeholder people are gone** (12 August). The plan calls them essential;
+  in practice the email-matching that made them claimable was optional at the
+  point of creation, so the promise did not hold. Everyone has an account now.
+- **Usernames are gone** (12 August). One unique display name does both jobs.
+- **A group has no meaningful currency.** The column survives as a suggestion
+  for the next expense; groups run in as many currencies as a trip does.
+- **shadcn/ui was not used**, so §2.6's component decision never happened.
+
 ## Next up
 
 1. **Search and filter** on expenses — the first thing that hurts once a group
    has fifty of them.
 2. **Hide settled-up friends and groups** behind a "show N settled" toggle.
+3. **Restore a deleted expense.** Deletion is already soft and now recorded, but
+   a deleted expense simply vanishes: `getExpense` filters `deleted_at is null`,
+   so there is no screen to restore from. Splitwise shows the struck-through
+   expense with a Restore button, and the groundwork is in place for it.
 
-Then, in rough order: **user-created categories** · a **debt-simplification
-toggle** (`groups.simplify_debts` is read at settle-up time but nothing sets it)
-· **multi-payer UI** (the service handles it; the form offers one payer and
-refuses to *edit* a multi-payer expense rather than silently flattening it) ·
-**recurring expenses** (schema and date maths in `src/core/recurrence.ts` are
-done and tested; needs UI, a cron route, and RLS policies — the table has none)
-· **CI** · **house-admin layer** · **comments, CSV export, charts** ·
-**App Store** via Capacitor, see §7 of the implementation plan.
+Then, in rough order: **user-created categories** · the **debt-simplification
+toggle** · **multi-payer UI** · **comments on expenses** (hang them off
+`expense_events`) · **recurring expenses** (schema and date maths in
+`src/core/recurrence.ts` are done and tested; needs UI, a cron route, and RLS
+policies — the table has none) · **CI** · **house-admin layer** · **CSV export
+and charts** · **App Store** via Capacitor, see §7 of the plan.
 
 ---
 
@@ -121,6 +174,11 @@ re-render too. Nineteen identical "Euro 26" groups came from exactly this. Use a
 `useRef`, which updates immediately. Fixed in the group form, the expense form
 and the settle form; `AuthForm` and `reset-password` still have the pattern,
 deliberately, because a repeat there is idempotent or harmless.
+
+**Expense history is append-only.** `expense_events` has select and insert
+policies and deliberately no update or delete. Anyone in an expense may change
+the expense; nobody may change the record of having changed it. If you add a way
+to edit events, that guarantee is gone.
 
 **Never format money with `toLocaleString`.** The runtime's locale data is not
 the same everywhere: `en-ZA` renders 123450 cents as "R1,234.50" under Node and
