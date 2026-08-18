@@ -170,7 +170,7 @@ export default function WithPicker({
           type="button"
           onClick={() => onApply({ groupId: null, withIds: chosen })}
           disabled={chosen.length === 0}
-          className="w-full rounded-xl bg-accent px-4 py-3.5 font-semibold text-white transition-opacity disabled:opacity-40"
+          className="w-full rounded-xl bg-accent px-4 py-3.5 font-semibold text-white transition-opacity disabled:opacity-50"
         >
           {chosen.length === 0
             ? 'Choose who to split with'

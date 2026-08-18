@@ -94,7 +94,7 @@ export default function ProfileFields({
           required
           autoFocus
           maxLength={80}
-          className="rounded-xl border border-edge bg-surface px-4 py-3 text-base outline-none focus:border-accent"
+          className="h-14 rounded-xl border border-edge bg-surface px-4 text-base outline-none focus:border-accent"
         />
         <span className="text-xs text-muted">
           What people see, and what they type to add you — so it has to be unique.
@@ -106,7 +106,7 @@ export default function ProfileFields({
         <select
           value={currency}
           onChange={(event) => setCurrency(event.target.value)}
-          className="rounded-xl border border-edge bg-surface px-4 py-3 text-base outline-none focus:border-accent"
+          className="h-14 rounded-xl border border-edge bg-surface px-4 text-base outline-none focus:border-accent"
         >
           {CURRENCY_CODES.map((code) => (
             <option key={code} value={code}>

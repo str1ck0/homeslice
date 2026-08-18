@@ -89,7 +89,7 @@ export default function DeleteGroupButton({
             autoFocus
             autoCapitalize="none"
             autoCorrect="off"
-            className="rounded-xl border border-edge bg-surface px-4 py-3 text-base outline-none focus:border-negative"
+            className="h-14 rounded-xl border border-edge bg-surface px-4 text-base outline-none focus:border-negative"
           />
         </label>
       )}

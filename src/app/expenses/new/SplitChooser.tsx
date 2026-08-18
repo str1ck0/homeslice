@@ -328,7 +328,7 @@ export default function SplitChooser({
               <select
                 value={value.payerId}
                 onChange={(event) => onChange({ ...value, payerId: event.target.value })}
-                className="rounded-xl border border-edge bg-raised px-4 py-3 text-base outline-none focus:border-accent"
+                className="h-14 rounded-xl border border-edge bg-raised px-4 text-base outline-none focus:border-accent"
               >
                 {members.map((member) => (
                   <option key={member.id} value={member.id}>
@@ -433,7 +433,7 @@ export default function SplitChooser({
             setOpen(false)
             setAdvanced(false)
           }}
-          className="w-full rounded-xl bg-accent px-4 py-3.5 font-semibold text-white"
+          className="w-full rounded-xl bg-accent px-4 py-3.5 font-semibold text-white transition-opacity"
         >
           Done
         </button>

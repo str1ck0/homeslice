@@ -70,7 +70,7 @@ export default function ResetPasswordPage() {
               required
               minLength={8}
               autoComplete="new-password"
-              className="rounded-xl border border-edge bg-raised px-4 py-3 text-base outline-none focus:border-accent"
+              className="h-14 rounded-xl border border-edge bg-raised px-4 text-base outline-none focus:border-accent"
             />
           </label>
 
@@ -83,7 +83,7 @@ export default function ResetPasswordPage() {
               required
               minLength={8}
               autoComplete="new-password"
-              className="rounded-xl border border-edge bg-raised px-4 py-3 text-base outline-none focus:border-accent"
+              className="h-14 rounded-xl border border-edge bg-raised px-4 text-base outline-none focus:border-accent"
             />
           </label>
 
@@ -96,7 +96,7 @@ export default function ResetPasswordPage() {
           <button
             type="submit"
             disabled={busy}
-            className="mt-2 rounded-xl bg-accent px-4 py-3.5 font-semibold text-white disabled:opacity-50"
+            className="mt-2 rounded-xl bg-accent px-4 py-3.5 font-semibold text-white transition-opacity disabled:opacity-50"
           >
             {busy ? 'Saving…' : 'Save password'}
           </button>

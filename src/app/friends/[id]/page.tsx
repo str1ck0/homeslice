@@ -75,7 +75,7 @@ export default async function FriendPage({ params }: { params: Promise<{ id: str
           {lines.length > 1 && <DebtBreakdown lines={lines} className="mt-3" />}
           <Link
             href={`/friends/${friend.profileId}/settle`}
-            className="mt-4 block rounded-xl border border-accent px-4 py-2.5 text-center text-sm font-semibold text-accent"
+            className="mt-4 block rounded-xl border border-accent px-4 py-3 text-center text-sm font-semibold text-accent"
           >
             Settle up
           </Link>

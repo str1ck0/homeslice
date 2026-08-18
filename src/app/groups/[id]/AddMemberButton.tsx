@@ -104,7 +104,7 @@ export default function AddMemberButton({
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Search friends"
                   autoCapitalize="none"
-                  className="mb-2 w-full rounded-xl border border-edge bg-raised px-4 py-3 text-base outline-none focus:border-accent"
+                  className="mb-2 h-14 w-full rounded-xl border border-edge bg-raised px-4 text-base outline-none focus:border-accent"
                 />
               )}
 

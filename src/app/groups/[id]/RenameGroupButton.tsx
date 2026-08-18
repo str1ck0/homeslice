@@ -70,7 +70,7 @@ export default function RenameGroupButton({
           required
           autoFocus
           maxLength={80}
-          className="rounded-xl border border-edge bg-surface px-4 py-3 text-base outline-none focus:border-accent"
+          className="h-14 rounded-xl border border-edge bg-surface px-4 text-base outline-none focus:border-accent"
         />
       </label>
 
@@ -83,7 +83,7 @@ export default function RenameGroupButton({
           onChange={(event) => setLabel(event.target.value)}
           maxLength={60}
           placeholder="Sharehouse"
-          className="rounded-xl border border-edge bg-surface px-4 py-3 text-base outline-none focus:border-accent"
+          className="h-14 rounded-xl border border-edge bg-surface px-4 text-base outline-none focus:border-accent"
         />
         <div className="mt-1 flex flex-wrap gap-1.5">
           {LABEL_SUGGESTIONS.map((suggestion) => (

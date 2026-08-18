@@ -113,7 +113,7 @@ export default async function GroupPage({
             <DebtBreakdown lines={lines} className="mt-3" />
             <Link
               href={`/groups/${id}/settle`}
-              className="mt-4 block rounded-xl border border-accent px-4 py-2.5 text-center text-sm font-semibold text-accent"
+              className="mt-4 block rounded-xl border border-accent px-4 py-3 text-center text-sm font-semibold text-accent"
             >
               Settle up
             </Link>
