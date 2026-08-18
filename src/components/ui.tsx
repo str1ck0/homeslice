@@ -407,3 +407,82 @@ export function ExpenseRow({
     </Link>
   )
 }
+
+const ROW_MONTHS = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+]
+
+/**
+ * A recorded payment, sitting in the same list as the expenses it settles.
+ *
+ * Deliberately shaped like ExpenseRow and deliberately not identical to it: a
+ * payment is not an expense, so it reads "You paid Sam" rather than a
+ * description, and carries a marker so you can tell the two apart at a glance.
+ * Both are entries in the same ledger, and both open to a page that says who
+ * did what.
+ */
+export function SettlementRow({
+  settlement,
+  currentProfileId,
+}: {
+  settlement: {
+    id: string
+    amountCents: number
+    currency: string
+    settledOn: string
+    method: string | null
+    fromProfileId: string
+    fromName: string
+    toProfileId: string
+    toName: string
+  }
+  currentProfileId: string
+}) {
+  const date = new Date(`${settlement.settledOn}T00:00:00`)
+  const youPaid = settlement.fromProfileId === currentProfileId
+  const youWerePaid = settlement.toProfileId === currentProfileId
+
+  const headline = youPaid
+    ? `You paid ${settlement.toName}`
+    : youWerePaid
+      ? `${settlement.fromName} paid you`
+      : `${settlement.fromName} paid ${settlement.toName}`
+
+  // Signed the way ExpenseRow signs yourNet: paying someone reduces what you
+  // owe, so it counts in your favour; being paid counts against you.
+  const yourNet = youPaid ? settlement.amountCents : youWerePaid ? -settlement.amountCents : 0
+
+  return (
+    <Link
+      href={`/settlements/${settlement.id}`}
+      className="flex items-center gap-3 rounded-2xl border border-edge bg-raised p-4 transition-colors hover:border-accent/50"
+    >
+      <div className="w-10 shrink-0 text-center">
+        <p className="text-xs uppercase text-muted">{ROW_MONTHS[date.getMonth()]}</p>
+        <p className="text-lg font-semibold leading-tight">{date.getDate()}</p>
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-semibold">
+          <span className="mr-1.5 text-muted" title="Payment">
+            &#8646;
+          </span>
+          {headline}
+        </p>
+        <p className="truncate text-sm text-muted">
+          Payment{settlement.method ? ` · ${settlement.method}` : ''}
+        </p>
+      </div>
+
+      <div className="shrink-0 text-right">
+        <p className="text-xs text-muted">
+          {yourNet === 0 ? 'not involved' : yourNet > 0 ? 'you paid' : 'you received'}
+        </p>
+        <span className="amount font-semibold">
+          {formatCents(settlement.amountCents, settlement.currency)}
+        </span>
+      </div>
+    </Link>
+  )
+}

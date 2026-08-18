@@ -29,7 +29,12 @@ import {
   updateExpense,
   type ExpenseInput,
 } from '@/server/services/expenses'
-import { recordSettlement, type SettlementInput } from '@/server/services/settlements'
+import {
+  recordSettlement,
+  updateSettlement,
+  deleteSettlement,
+  type SettlementInput,
+} from '@/server/services/settlements'
 import { addFriend, removeFriend } from '@/server/services/friends'
 
 export interface ActionResult {
@@ -240,12 +245,55 @@ export async function deleteExpenseAction(
   }
 }
 
+/**
+ * A payment moves the same balances an expense does, so it has to invalidate
+ * the same screens — including both people's friend pages, which is where a
+ * one-off payment with no group is the only place it can be seen.
+ */
+function revalidateSettlement(input: {
+  groupId: string | null
+  fromProfileId: string
+  toProfileId: string
+}) {
+  revalidatePath('/dashboard')
+  revalidatePath('/friends')
+  revalidatePath(`/friends/${input.fromProfileId}`)
+  revalidatePath(`/friends/${input.toProfileId}`)
+  if (input.groupId) revalidatePath(`/groups/${input.groupId}`)
+}
+
 export async function recordSettlementAction(input: SettlementInput): Promise<ActionResult> {
   try {
     const id = await recordSettlement(input)
-    revalidatePath('/dashboard')
-    if (input.groupId) revalidatePath(`/groups/${input.groupId}`)
+    revalidateSettlement(input)
     return { ok: true, data: id }
+  } catch (error) {
+    return toResult(error)
+  }
+}
+
+export async function updateSettlementAction(
+  settlementId: string,
+  input: SettlementInput
+): Promise<ActionResult> {
+  try {
+    await updateSettlement(settlementId, input)
+    revalidateSettlement(input)
+    revalidatePath(`/settlements/${settlementId}`)
+    return { ok: true, data: settlementId }
+  } catch (error) {
+    return toResult(error)
+  }
+}
+
+export async function deleteSettlementAction(
+  settlementId: string,
+  input: { groupId: string | null; fromProfileId: string; toProfileId: string }
+): Promise<ActionResult> {
+  try {
+    await deleteSettlement(settlementId)
+    revalidateSettlement(input)
+    return { ok: true }
   } catch (error) {
     return toResult(error)
   }
