@@ -90,7 +90,7 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
       )}
 
       <section>
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-muted">
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted">
           {SPLIT_LABELS[expense.splitType] ?? 'Split'}
         </h2>
         <Card className="divide-y divide-edge">
@@ -120,7 +120,7 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
 
       {expense.imageIds.length > 0 && (
         <section>
-          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-muted">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted">
             Photos
           </h2>
           <div className="flex flex-wrap gap-2">
@@ -147,7 +147,7 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
       )}
 
       <section>
-        <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-muted">
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted">
           History
         </h2>
         <Card className="divide-y divide-edge">
@@ -185,7 +185,7 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
 
       {expense.note && (
         <section>
-          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-muted">Note</h2>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted">Note</h2>
           <Card className="p-4 text-sm">{expense.note}</Card>
         </section>
       )}
@@ -194,7 +194,7 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
         <>
           <Link
             href={`/expenses/${expense.id}/edit`}
-            className="mt-2 block rounded-xl border border-accent py-3 text-center text-sm font-semibold text-accent"
+            className="mt-2 block rounded-xl border border-accent px-4 py-3 text-center text-sm font-semibold text-accent"
           >
             Edit expense
           </Link>

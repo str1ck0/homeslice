@@ -74,7 +74,7 @@ export default function NewGroupPage() {
               required
               maxLength={80}
               placeholder="20 Van Breda Street"
-              className="rounded-xl border border-edge bg-raised px-4 py-3 text-base outline-none focus:border-accent"
+              className="h-14 rounded-xl border border-edge bg-raised px-4 text-base outline-none focus:border-accent"
             />
           </label>
 
@@ -88,7 +88,7 @@ export default function NewGroupPage() {
               onChange={(event) => setLabel(event.target.value)}
               maxLength={60}
               placeholder="Sharehouse"
-              className="rounded-xl border border-edge bg-raised px-4 py-3 text-base outline-none focus:border-accent"
+              className="h-14 rounded-xl border border-edge bg-raised px-4 text-base outline-none focus:border-accent"
             />
             <div className="mt-1 flex flex-wrap gap-1.5">
               {LABEL_SUGGESTIONS.map((suggestion) => (
@@ -115,7 +115,7 @@ export default function NewGroupPage() {
           <button
             type="submit"
             disabled={busy}
-            className="mt-2 rounded-xl bg-accent px-4 py-3.5 font-semibold text-white disabled:opacity-50"
+            className="mt-2 rounded-xl bg-accent px-4 py-3.5 font-semibold text-white transition-opacity disabled:opacity-50"
           >
             {busy ? 'Creating…' : 'Create group'}
           </button>
@@ -129,13 +129,13 @@ export default function NewGroupPage() {
               required
               autoCapitalize="characters"
               placeholder="ABCD2345"
-              className="rounded-xl border border-edge bg-raised px-4 py-3 text-center text-xl font-semibold uppercase tracking-[0.3em] outline-none focus:border-accent"
+              className="h-14 rounded-xl border border-edge bg-raised px-4 text-center text-xl font-semibold uppercase tracking-[0.3em] outline-none focus:border-accent"
             />
           </label>
           <button
             type="submit"
             disabled={busy}
-            className="mt-2 rounded-xl bg-accent px-4 py-3.5 font-semibold text-white disabled:opacity-50"
+            className="mt-2 rounded-xl bg-accent px-4 py-3.5 font-semibold text-white transition-opacity disabled:opacity-50"
           >
             {busy ? 'Joining…' : 'Join group'}
           </button>

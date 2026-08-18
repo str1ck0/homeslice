@@ -264,8 +264,15 @@ export default function ExpenseForm({
         >
           ← Cancel
         </Link>
-        <h1 className="text-lg font-semibold">{editing ? 'Edit expense' : 'New expense'}</h1>
-        <span className="w-14" />
+        <h1 className="min-w-0 flex-1 truncate text-center text-lg font-semibold">
+          {editing ? 'Edit expense' : 'New expense'}
+        </h1>
+        {/* Balances the Cancel link so the title sits centred. Matched to it by
+            width rather than by a guess, because "← Cancel" is wider than the
+            w-14 that used to be here. */}
+        <span aria-hidden className="shrink-0 text-sm invisible">
+          ← Cancel
+        </span>
       </div>
 
       {editing?.multiplePayers && (
@@ -309,7 +316,7 @@ export default function ExpenseForm({
           required
           maxLength={140}
           placeholder="Groceries"
-          className="rounded-xl border border-edge bg-raised px-4 py-3 text-base outline-none focus:border-accent"
+          className="h-14 rounded-xl border border-edge bg-raised px-4 text-base outline-none focus:border-accent"
         />
       </label>
 
@@ -391,7 +398,7 @@ export default function ExpenseForm({
           </p>
           <Link
             href={groupId ? `/groups/${groupId}` : '/friends'}
-            className="mt-3 inline-block rounded-xl bg-accent px-4 py-2.5 text-sm font-semibold text-white"
+            className="mt-3 inline-block rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-white"
           >
             {groupId ? 'Add someone to the group' : 'Add a friend'}
           </Link>
@@ -461,7 +468,7 @@ export default function ExpenseForm({
               participants.length === 0 ||
               Boolean(editing?.multiplePayers)
             }
-            className="w-full rounded-xl bg-accent px-4 py-3.5 font-semibold text-white disabled:opacity-40"
+            className="w-full rounded-xl bg-accent px-4 py-3.5 font-semibold text-white transition-opacity disabled:opacity-50"
           >
             {busy ? (uploadStatus ?? 'Saving…') : editing ? 'Save changes' : 'Save expense'}
           </button>

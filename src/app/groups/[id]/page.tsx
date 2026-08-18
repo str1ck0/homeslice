@@ -5,7 +5,16 @@ import { getGroup, getGroupContents, getGroupMembers } from '@/server/services/g
 import { listFriends } from '@/server/services/friends'
 import { debtLinesInGroup, getOverview, sumLines } from '@/server/services/overview'
 import { listExpenses } from '@/server/services/expenses'
-import { Avatar, BalanceSummary, Card, DebtBreakdown, EmptyState, ExpenseRow } from '@/components/ui'
+import { listSettlements } from '@/server/services/settlements'
+import {
+  Avatar,
+  BalanceSummary,
+  Card,
+  DebtBreakdown,
+  EmptyState,
+  ExpenseRow,
+  SettlementRow,
+} from '@/components/ui'
 import AvatarPicker from '@/components/AvatarPicker'
 import { setGroupAvatarAction } from '@/app/actions'
 import AddMemberButton from './AddMemberButton'
@@ -30,13 +39,24 @@ export default async function GroupPage({
   const group = await getGroup(id).catch(() => null)
   if (!group) notFound()
 
-  const [members, overview, expenses, friends, contents] = await Promise.all([
+  const [members, overview, expenses, settlements, friends, contents] = await Promise.all([
     getGroupMembers(id),
     getOverview(profile.id),
     listExpenses(id, profile.id),
+    listSettlements(id),
     listFriends(),
     getGroupContents(id),
   ])
+
+  // One ledger, not two — see the friend page for why.
+  const entries = [
+    ...expenses.map((expense) => ({ kind: 'expense' as const, date: expense.expenseDate, expense })),
+    ...settlements.map((settlement) => ({
+      kind: 'settlement' as const,
+      date: settlement.settledOn,
+      settlement,
+    })),
+  ].sort((a, b) => b.date.localeCompare(a.date))
 
   const memberIds = new Set(members.map((member) => member.profileId))
   const addableFriends = friends
@@ -93,7 +113,7 @@ export default async function GroupPage({
             <DebtBreakdown lines={lines} className="mt-3" />
             <Link
               href={`/groups/${id}/settle`}
-              className="mt-4 block rounded-xl border border-accent px-4 py-2.5 text-center text-sm font-semibold text-accent"
+              className="mt-4 block rounded-xl border border-accent px-4 py-3 text-center text-sm font-semibold text-accent"
             >
               Settle up
             </Link>
@@ -101,17 +121,19 @@ export default async function GroupPage({
         )}
 
         <section>
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted">Expenses</h2>
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="min-w-0 text-sm font-semibold uppercase tracking-wider text-muted">
+              Expenses &amp; payments
+            </h2>
             <Link
               href={`/expenses/new?group=${id}`}
-              className="text-sm font-medium text-accent"
+              className="shrink-0 text-sm font-medium text-accent"
             >
               Add expense
             </Link>
           </div>
 
-          {expenses.length === 0 ? (
+          {entries.length === 0 ? (
             <Card>
               <EmptyState
                 title="No expenses yet"
@@ -128,11 +150,17 @@ export default async function GroupPage({
             </Card>
           ) : (
             <ul className="flex flex-col gap-2">
-              {expenses.map((expense) => (
-                <li key={expense.id}>
-                  <ExpenseRow expense={expense} />
-                </li>
-              ))}
+              {entries.map((entry) =>
+                entry.kind === 'expense' ? (
+                  <li key={`e-${entry.expense.id}`}>
+                    <ExpenseRow expense={entry.expense} />
+                  </li>
+                ) : (
+                  <li key={`s-${entry.settlement.id}`}>
+                    <SettlementRow settlement={entry.settlement} currentProfileId={profile.id} />
+                  </li>
+                )
+              )}
             </ul>
           )}
         </section>

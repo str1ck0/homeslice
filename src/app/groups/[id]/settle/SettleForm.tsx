@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { recordSettlementAction } from '@/app/actions'
+import { recordSettlementAction, updateSettlementAction } from '@/app/actions'
 import { formatCents } from '@/core/money'
 import { CURRENCY_CODES } from '@/core/currencies'
 
@@ -19,6 +19,22 @@ interface Suggestion {
   amountCents: number
 }
 
+/** What an existing payment looked like when the form opened. */
+export interface SettlementDraft {
+  id: string
+  fromProfileId: string
+  toProfileId: string
+  amount: string
+  currency: string
+  method: string
+  note: string | null
+  settledOn: string
+}
+
+function today(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+
 export default function SettleForm({
   groupId,
   groupName,
@@ -27,6 +43,7 @@ export default function SettleForm({
   defaultCurrency,
   members,
   suggestions,
+  existing,
 }: {
   groupId: string | null
   groupName: string
@@ -36,6 +53,8 @@ export default function SettleForm({
   defaultCurrency: string
   members: Member[]
   suggestions: Suggestion[]
+  /** Present when correcting a payment that is already recorded. */
+  existing?: SettlementDraft
 }) {
   const router = useRouter()
   const nameFor = new Map(members.map((m) => [m.id, m.name]))
@@ -45,19 +64,29 @@ export default function SettleForm({
   const [first] = suggestions
 
   const [fromProfileId, setFromProfileId] = useState(
-    first?.fromProfileId ?? currentProfileId
+    existing?.fromProfileId ?? first?.fromProfileId ?? currentProfileId
   )
   const [toProfileId, setToProfileId] = useState(
-    first?.toProfileId ?? members.find((m) => m.id !== currentProfileId)?.id ?? ''
+    existing?.toProfileId ??
+      first?.toProfileId ??
+      members.find((m) => m.id !== currentProfileId)?.id ??
+      ''
   )
-  const [amount, setAmount] = useState(() =>
-    first ? formatCents(first.amountCents, first.currency, { showSymbol: false }) : ''
+  const [amount, setAmount] = useState(() => {
+    if (existing) return existing.amount
+    return first ? formatCents(first.amountCents, first.currency, { showSymbol: false }) : ''
+  })
+  const [currency, setCurrency] = useState(
+    existing?.currency ?? first?.currency ?? defaultCurrency
   )
-  const [currency, setCurrency] = useState(first?.currency ?? defaultCurrency)
-  const [method, setMethod] = useState('')
+  const [method, setMethod] = useState(existing?.method ?? '')
+  const [settledOn, setSettledOn] = useState(existing?.settledOn ?? today())
   const [busy, setBusy] = useState(false)
   const submitting = useRef(false)
   const [error, setError] = useState<string | null>(null)
+
+  const cancelHref = backHref ?? (groupId ? `/groups/${groupId}` : '/friends')
+  const doneHref = existing ? `/settlements/${existing.id}` : cancelHref
 
   function applySuggestion(suggestion: Suggestion) {
     setFromProfileId(suggestion.fromProfileId)
@@ -77,55 +106,70 @@ export default function SettleForm({
     setBusy(true)
     setError(null)
 
-    const result = await recordSettlementAction({
+    const input = {
       groupId,
       fromProfileId,
       toProfileId,
       amount,
       currency,
       method: method || null,
-      note: null,
-    })
+      note: existing?.note ?? null,
+      settledOn,
+    }
+
+    const result = existing
+      ? await updateSettlementAction(existing.id, input)
+      : await recordSettlementAction(input)
 
     if (!result.ok) {
-      setError(result.error ?? 'Could not record that payment')
+      setError(
+        result.error ?? (existing ? 'Could not save that change' : 'Could not record that payment')
+      )
       setBusy(false)
       submitting.current = false
       return
     }
 
-    // Still busy on purpose — the navigation below has only been started.
-    router.push(backHref ?? (groupId ? `/groups/${groupId}` : '/friends'))
+    // Land on the payment itself rather than back where you came from, so you
+    // can see the thing you just created. Not being able to see it was the
+    // whole problem.
+    router.push(existing ? `/settlements/${existing.id}` : doneHref)
     router.refresh()
   }
 
   return (
     <form
       onSubmit={handleSubmit}
-      className="mx-auto flex min-h-dvh max-w-lg flex-col gap-5 px-5 py-8"
+      className="mx-auto flex min-h-dvh w-full max-w-lg flex-col gap-5 px-5 py-8"
     >
-      <div className="flex items-center justify-between">
-        <Link
-          href={backHref ?? (groupId ? `/groups/${groupId}` : '/friends')}
-          className="text-sm text-muted hover:text-ink"
-        >
+      <div className="flex items-center gap-3">
+        <Link href={cancelHref} className="shrink-0 text-sm text-muted hover:text-ink">
           ← Cancel
         </Link>
-        <h1 className="text-lg font-semibold">Settle up</h1>
-        <span className="w-14" />
+        <h1 className="min-w-0 flex-1 truncate text-center text-lg font-semibold">
+          {existing ? 'Edit payment' : 'Settle up'}
+        </h1>
+        {/* Balances the Cancel link so the title sits centred. Matched to it by
+            width rather than by a guess, because "← Cancel" is wider than the
+            w-14 that used to be here and the title sat visibly off-centre. */}
+        <span aria-hidden className="shrink-0 text-sm invisible">
+          ← Cancel
+        </span>
       </div>
 
       <p className="text-sm text-muted">
-        {groupId ? `Record a payment in ${groupName}.` : `Record a payment with ${groupName}.`} This
-        adjusts balances — it doesn&rsquo;t move real money.
+        {existing
+          ? 'Correcting a payment changes both balances back to match. Everyone in it sees the change.'
+          : `${groupId ? `Record a payment in ${groupName}.` : `Record a payment with ${groupName}.`} This adjusts balances — it doesn’t move real money.`}
       </p>
 
-      {suggestions.length > 0 && (
+      {!existing && suggestions.length > 0 && (
         <div className="flex flex-col gap-2">
           <span className="text-sm font-medium">Outstanding</span>
           {suggestions.map((suggestion, index) => {
             const youPay = suggestion.fromProfileId === currentProfileId
             const other = youPay ? suggestion.toProfileId : suggestion.fromProfileId
+            const otherName = nameFor.get(other) ?? 'Someone'
             return (
               <button
                 key={index}
@@ -133,11 +177,12 @@ export default function SettleForm({
                 onClick={() => applySuggestion(suggestion)}
                 className="flex items-center justify-between gap-3 rounded-xl border border-edge bg-raised p-4 text-left transition-colors hover:border-accent"
               >
-                <span className="text-sm">
-                  {youPay ? 'You pay' : `${nameFor.get(other) ?? 'Someone'} pays you`}
-                  {youPay && ` ${nameFor.get(other) ?? 'someone'}`}
+                {/* min-w-0 + truncate: a long display name used to push the
+                    amount off the edge of a phone screen. */}
+                <span className="min-w-0 truncate text-sm">
+                  {youPay ? `You pay ${otherName}` : `${otherName} pays you`}
                 </span>
-                <span className="amount font-semibold text-accent">
+                <span className="amount shrink-0 font-semibold text-accent">
                   {formatCents(suggestion.amountCents, suggestion.currency)}
                 </span>
               </button>
@@ -146,13 +191,17 @@ export default function SettleForm({
         </div>
       )}
 
+      {/* min-w-0 on every flex child below. Without it a select is never
+          allowed to shrink below its longest option and an input never below
+          its default size, so a name like "lizzardwizzard" made these rows
+          wider than the screen. */}
       <div className="flex gap-3">
-        <label className="flex flex-1 flex-col gap-1.5">
+        <label className="flex min-w-0 flex-1 flex-col gap-1.5">
           <span className="text-sm font-medium">From</span>
           <select
             value={fromProfileId}
             onChange={(event) => setFromProfileId(event.target.value)}
-            className="rounded-xl border border-edge bg-raised px-3 py-3 text-base outline-none focus:border-accent"
+            className="h-14 w-full min-w-0 truncate rounded-xl border border-edge bg-raised px-4 text-base outline-none focus:border-accent"
           >
             {members.map((member) => (
               <option key={member.id} value={member.id}>
@@ -161,12 +210,12 @@ export default function SettleForm({
             ))}
           </select>
         </label>
-        <label className="flex flex-1 flex-col gap-1.5">
+        <label className="flex min-w-0 flex-1 flex-col gap-1.5">
           <span className="text-sm font-medium">To</span>
           <select
             value={toProfileId}
             onChange={(event) => setToProfileId(event.target.value)}
-            className="rounded-xl border border-edge bg-raised px-3 py-3 text-base outline-none focus:border-accent"
+            className="h-14 w-full min-w-0 truncate rounded-xl border border-edge bg-raised px-4 text-base outline-none focus:border-accent"
           >
             {members.map((member) => (
               <option key={member.id} value={member.id}>
@@ -177,33 +226,57 @@ export default function SettleForm({
         </label>
       </div>
 
-      <div className="flex gap-3">
-        <label className="flex flex-1 flex-col gap-1.5">
-          <span className="text-sm font-medium">Amount</span>
+      {/* Same control as the expense form, for the same reason: recording a
+          payment and adding an expense ask the same question about money, so
+          they should not look like two different apps. */}
+      <div className="flex flex-col gap-1.5">
+        <span className="text-sm font-medium">Amount</span>
+        <div className="flex items-stretch overflow-hidden rounded-xl border border-edge bg-raised focus-within:border-accent">
+          {/* The code sits inside the field rather than beside it: it is a unit,
+              not a second question, and giving it its own box stole a third of
+              the row from the number that matters. */}
+          <div className="relative shrink-0 border-r border-edge">
+            <select
+              value={currency}
+              onChange={(event) => setCurrency(event.target.value)}
+              aria-label="Currency"
+              className="h-14 appearance-none bg-transparent py-0 pl-4 pr-8 text-base font-medium text-muted outline-none"
+            >
+              {CURRENCY_CODES.map((code) => (
+                <option key={code} value={code}>
+                  {code}
+                </option>
+              ))}
+            </select>
+            <span
+              aria-hidden
+              className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted"
+            >
+              ▾
+            </span>
+          </div>
+
           <input
             value={amount}
             onChange={(event) => setAmount(event.target.value)}
             required
             inputMode="decimal"
             placeholder="0.00"
-            className="amount rounded-xl border border-edge bg-raised px-4 py-3 text-xl font-semibold outline-none focus:border-accent"
+            className="amount h-14 min-w-0 flex-1 bg-transparent px-4 text-xl font-semibold outline-none"
           />
-        </label>
-        <label className="flex w-28 flex-col gap-1.5">
-          <span className="text-sm font-medium">Currency</span>
-          <select
-            value={currency}
-            onChange={(event) => setCurrency(event.target.value)}
-            className="rounded-xl border border-edge bg-raised px-3 py-3 text-base outline-none focus:border-accent"
-          >
-            {CURRENCY_CODES.map((code) => (
-              <option key={code} value={code}>
-                {code}
-              </option>
-            ))}
-          </select>
-        </label>
+        </div>
       </div>
+
+      <label className="flex flex-col gap-1.5">
+        <span className="text-sm font-medium">Date</span>
+        <input
+          type="date"
+          value={settledOn}
+          onChange={(event) => setSettledOn(event.target.value)}
+          required
+          className="h-14 min-w-0 rounded-xl border border-edge bg-raised px-4 text-base outline-none focus:border-accent"
+        />
+      </label>
 
       <label className="flex flex-col gap-1.5">
         <span className="text-sm font-medium">
@@ -214,7 +287,7 @@ export default function SettleForm({
           onChange={(event) => setMethod(event.target.value)}
           maxLength={60}
           placeholder="EFT, cash, SnapScan…"
-          className="rounded-xl border border-edge bg-raised px-4 py-3 text-base outline-none focus:border-accent"
+          className="h-14 min-w-0 rounded-xl border border-edge bg-raised px-4 text-base outline-none focus:border-accent"
         />
       </label>
 
@@ -227,9 +300,15 @@ export default function SettleForm({
       <button
         type="submit"
         disabled={busy || fromProfileId === toProfileId}
-        className="mt-2 rounded-xl bg-accent px-4 py-3.5 font-semibold text-white disabled:opacity-40"
+        className="mt-2 rounded-xl bg-accent px-4 py-3.5 font-semibold text-white transition-opacity disabled:opacity-50"
       >
-        {busy ? 'Recording…' : 'Record payment'}
+        {busy
+          ? existing
+            ? 'Saving…'
+            : 'Recording…'
+          : existing
+            ? 'Save changes'
+            : 'Record payment'}
       </button>
     </form>
   )

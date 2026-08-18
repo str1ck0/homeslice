@@ -86,7 +86,7 @@ export default function AddFriendButton({ compact = false }: { compact?: boolean
             spellCheck={false}
             maxLength={40}
             placeholder="Enter their name"
-            className="rounded-xl border border-edge bg-raised px-4 py-3 text-base outline-none focus:border-accent"
+            className="h-14 rounded-xl border border-edge bg-raised px-4 text-base outline-none focus:border-accent"
           />
           <span className="text-xs text-muted">
             Exactly as they have it — capitals and spaces don&rsquo;t matter.
@@ -108,7 +108,7 @@ export default function AddFriendButton({ compact = false }: { compact?: boolean
           <button
             type="submit"
             disabled={busy || name.trim().length < 2}
-            className="w-full rounded-xl bg-accent px-4 py-3.5 font-semibold text-white transition-opacity disabled:opacity-40"
+            className="w-full rounded-xl bg-accent px-4 py-3.5 font-semibold text-white transition-opacity disabled:opacity-50"
           >
             {busy ? 'Adding…' : 'Add friend'}
           </button>

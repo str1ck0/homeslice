@@ -3,8 +3,17 @@ import { notFound, redirect } from 'next/navigation'
 import { getCurrentProfile } from '@/server/services/session'
 import { listFriends } from '@/server/services/friends'
 import { listExpensesWithPerson } from '@/server/services/expenses'
+import { listSettlementsWithPerson } from '@/server/services/settlements'
 import { debtLinesWith, getOverview, totalWith } from '@/server/services/overview'
-import { Avatar, Card, CurrencyTotals, DebtBreakdown, EmptyState, ExpenseRow } from '@/components/ui'
+import {
+  Avatar,
+  Card,
+  CurrencyTotals,
+  DebtBreakdown,
+  EmptyState,
+  ExpenseRow,
+  SettlementRow,
+} from '@/components/ui'
 import RemoveFriendButton from './RemoveFriendButton'
 
 export const dynamic = 'force-dynamic'
@@ -18,10 +27,22 @@ export default async function FriendPage({ params }: { params: Promise<{ id: str
   const friend = friends.find((f) => f.profileId === id)
   if (!friend) notFound()
 
-  const [overview, expenses] = await Promise.all([
+  const [overview, expenses, settlements] = await Promise.all([
     getOverview(profile.id),
     listExpensesWithPerson(profile.id, friend.profileId),
+    listSettlementsWithPerson(profile.id, friend.profileId),
   ])
+
+  // One ledger, not two. A payment and an expense both change what you owe, so
+  // hiding one of them is how a balance ends up with no visible cause.
+  const entries = [
+    ...expenses.map((expense) => ({ kind: 'expense' as const, date: expense.expenseDate, expense })),
+    ...settlements.map((settlement) => ({
+      kind: 'settlement' as const,
+      date: settlement.settledOn,
+      settlement,
+    })),
+  ].sort((a, b) => b.date.localeCompare(a.date))
 
   const totals = totalWith(overview, profile.id, friend.profileId)
   const lines = debtLinesWith(overview, profile.id, friend.profileId)
@@ -54,7 +75,7 @@ export default async function FriendPage({ params }: { params: Promise<{ id: str
           {lines.length > 1 && <DebtBreakdown lines={lines} className="mt-3" />}
           <Link
             href={`/friends/${friend.profileId}/settle`}
-            className="mt-4 block rounded-xl border border-accent px-4 py-2.5 text-center text-sm font-semibold text-accent"
+            className="mt-4 block rounded-xl border border-accent px-4 py-3 text-center text-sm font-semibold text-accent"
           >
             Settle up
           </Link>
@@ -62,29 +83,35 @@ export default async function FriendPage({ params }: { params: Promise<{ id: str
       )}
 
       <section>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted">
-            Shared expenses
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h2 className="min-w-0 text-sm font-semibold uppercase tracking-wider text-muted">
+            Expenses &amp; payments
           </h2>
-          <Link href="/expenses/new" className="text-sm font-medium text-accent">
+          <Link href="/expenses/new" className="shrink-0 text-sm font-medium text-accent">
             Add expense
           </Link>
         </div>
 
-        {expenses.length === 0 ? (
+        {entries.length === 0 ? (
           <Card>
             <EmptyState
               title="Nothing shared yet"
-              body={`Anything you split with ${friend.displayName} shows up here — in a group or not.`}
+              body={`Anything you split or settle with ${friend.displayName} shows up here — in a group or not.`}
             />
           </Card>
         ) : (
           <ul className="flex flex-col gap-2">
-            {expenses.map((expense) => (
-              <li key={expense.id}>
-                <ExpenseRow expense={expense} />
-              </li>
-            ))}
+            {entries.map((entry) =>
+              entry.kind === 'expense' ? (
+                <li key={`e-${entry.expense.id}`}>
+                  <ExpenseRow expense={entry.expense} />
+                </li>
+              ) : (
+                <li key={`s-${entry.settlement.id}`}>
+                  <SettlementRow settlement={entry.settlement} currentProfileId={profile.id} />
+                </li>
+              )
+            )}
           </ul>
         )}
       </section>

@@ -168,7 +168,7 @@ export default function AuthForm() {
         <button
           type="submit"
           disabled={busy}
-          className="mt-2 flex items-center justify-center gap-2 rounded-xl bg-accent px-4 py-3.5 font-semibold text-white transition-opacity disabled:opacity-70"
+          className="mt-2 flex items-center justify-center gap-2 rounded-xl bg-accent px-4 py-3.5 font-semibold text-white transition-opacity disabled:opacity-50"
         >
           {busy && <Spinner />}
           {succeeded ? 'Signed in' : busy ? 'Just a moment…' : copy.cta}
@@ -228,7 +228,7 @@ function Field({
         {...props}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="rounded-xl border border-edge bg-raised px-4 py-3 text-base outline-none transition-colors focus:border-accent"
+        className="h-14 rounded-xl border border-edge bg-raised px-4 text-base outline-none transition-colors focus:border-accent"
       />
     </label>
   )

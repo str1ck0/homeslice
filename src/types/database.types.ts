@@ -798,6 +798,48 @@ export type Database = {
           },
         ]
       }
+      settlement_events: {
+        Row: {
+          actor_id: string
+          changes: string[]
+          created_at: string
+          id: string
+          kind: string
+          settlement_id: string
+        }
+        Insert: {
+          actor_id: string
+          changes?: string[]
+          created_at?: string
+          id?: string
+          kind: string
+          settlement_id: string
+        }
+        Update: {
+          actor_id?: string
+          changes?: string[]
+          created_at?: string
+          id?: string
+          kind?: string
+          settlement_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "settlement_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "settlement_events_settlement_id_fkey"
+            columns: ["settlement_id"]
+            isOneToOne: false
+            referencedRelation: "settlements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       settlements: {
         Row: {
           amount_cents: number
@@ -883,6 +925,7 @@ export type Database = {
         Returns: string
       }
       can_access_expense: { Args: { target_expense: string }; Returns: boolean }
+      can_access_settlement: { Args: { target_settlement: string }; Returns: boolean }
       can_view_profile: { Args: { target_profile: string }; Returns: boolean }
       create_expense: {
         Args: {

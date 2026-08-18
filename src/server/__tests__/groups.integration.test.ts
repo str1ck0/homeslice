@@ -837,4 +837,161 @@ describeIntegration('group membership and deletion', () => {
       )
     })
   })
+
+  /**
+   * A payment used to be write-only: it moved both balances and then vanished,
+   * with no screen listing it and no way to correct or undo it. These pin the
+   * rules that make it a ledger entry instead — both people can see it, both
+   * can fix it, and neither can fix it quietly.
+   */
+  describe('a payment belongs to both people in it', () => {
+    let settlementId: string
+
+    beforeAll(async () => {
+      // A one-off payment with no group: owner pays friend, owner records it.
+      const { data, error } = await owner.client
+        .from('settlements')
+        .insert({
+          group_id: null,
+          from_profile: owner.profileId,
+          to_profile: friend.profileId,
+          amount_cents: 222316,
+          currency: 'ZAR',
+          method: 'Paid GG',
+          settled_on: '2026-08-18',
+          created_by: owner.profileId,
+        })
+        .select('id')
+        .single()
+      if (error) throw error
+      settlementId = data.id
+    }, 60_000)
+
+    it('is visible to the person who was paid, not just whoever typed it in', async () => {
+      const { data } = await friend.client
+        .from('settlements')
+        .select('amount_cents, currency, method')
+        .eq('id', settlementId)
+        .maybeSingle()
+
+      expect(data).not.toBeNull()
+      expect(data!.amount_cents).toBe(222316)
+      expect(data!.method).toBe('Paid GG')
+    })
+
+    it('stays invisible to everyone else', async () => {
+      const { data } = await stranger.client
+        .from('settlements')
+        .select('id')
+        .eq('id', settlementId)
+
+      expect(data ?? []).toEqual([])
+    })
+
+    it('lets the person who was paid correct the amount', async () => {
+      const { data } = await friend.client
+        .from('settlements')
+        .update({ amount_cents: 750000 })
+        .eq('id', settlementId)
+        .select('id')
+
+      expect(data ?? []).toHaveLength(1)
+
+      const { data: row } = await admin!
+        .from('settlements')
+        .select('amount_cents')
+        .eq('id', settlementId)
+        .single()
+      expect(row!.amount_cents).toBe(750000)
+    })
+
+    it('keeps a stranger from touching it', async () => {
+      const { data } = await stranger.client
+        .from('settlements')
+        .update({ amount_cents: 1 })
+        .eq('id', settlementId)
+        .select('id')
+
+      expect(data ?? []).toEqual([])
+
+      const { data: still } = await admin!
+        .from('settlements')
+        .select('amount_cents')
+        .eq('id', settlementId)
+        .single()
+      expect(still!.amount_cents).toBe(750000)
+    })
+
+    it('records who changed what, readable by both people', async () => {
+      const { error } = await friend.client.from('settlement_events').insert({
+        settlement_id: settlementId,
+        actor_id: friend.profileId,
+        kind: 'updated',
+        changes: ['Amount changed from R2,223.16 to R7,500.00'],
+      })
+      expect(error).toBeNull()
+
+      // The person who recorded it can read what the other one did.
+      const { data } = await owner.client
+        .from('settlement_events')
+        .select('kind, changes')
+        .eq('settlement_id', settlementId)
+
+      expect(data!.length).toBeGreaterThan(0)
+      expect(data!.some((e) => e.changes?.[0]?.includes('R2,223.16 to R7,500.00'))).toBe(true)
+    })
+
+    it('will not let anyone sign the record as somebody else', async () => {
+      const { error } = await friend.client.from('settlement_events').insert({
+        settlement_id: settlementId,
+        actor_id: owner.profileId,
+        kind: 'updated',
+        changes: ['Framed'],
+      })
+      expect(error).not.toBeNull()
+    })
+
+    it('will not let anyone rewrite or erase the record', async () => {
+      const { data: rows } = await friend.client
+        .from('settlement_events')
+        .select('id')
+        .eq('settlement_id', settlementId)
+        .limit(1)
+      const eventId = rows![0].id
+
+      const { data: updated } = await friend.client
+        .from('settlement_events')
+        .update({ changes: ['Nothing to see here'] })
+        .eq('id', eventId)
+        .select('id')
+      expect(updated ?? []).toEqual([])
+
+      const { data: deleted } = await friend.client
+        .from('settlement_events')
+        .delete()
+        .eq('id', eventId)
+        .select('id')
+      expect(deleted ?? []).toEqual([])
+    })
+
+    it('undoes as a soft delete, so the row survives to explain itself', async () => {
+      const { data } = await owner.client
+        .from('settlements')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', settlementId)
+        .is('deleted_at', null)
+        .select('id')
+
+      expect(data ?? []).toHaveLength(1)
+
+      const { data: row } = await admin!
+        .from('settlements')
+        .select('deleted_at, amount_cents')
+        .eq('id', settlementId)
+        .single()
+      expect(row!.deleted_at).not.toBeNull()
+      // Still there, and still says what it said.
+      expect(row!.amount_cents).toBe(750000)
+    })
+  })
 })
