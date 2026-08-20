@@ -1,11 +1,11 @@
 # Homeslice — where things stand
 
-_Last updated: 13 August 2026._
+_Last updated: 20 August 2026._
 
 **Live:** https://homeslice-liam-stricklands-projects.vercel.app
 **Repo:** `master`, clean.
 **Database:** Supabase project `zwnhbhymjaqjpuxfcbam` (eu-west-1), active.
-**Tests:** 109 unit + 56 integration, all passing.
+**Tests:** 116 unit + 64 integration, all passing.
 
 ---
 
@@ -50,7 +50,14 @@ The core Splitwise loop is done and has been used by two real people.
 
 ## What is deliberately not built
 
-- **Activity feed.** Cut — you don't use Splitwise's.
+- **Activity feed as its own screen.** Still cut. What exists instead is
+  Recent on the dashboard, which since 20 August is ordered by when somebody
+  last touched a thing rather than by the date written on it. That ordering is
+  not cosmetic: backdating an expense used to bury it below everything newer,
+  so the balance moved and nothing visible moved with it, which reads as an
+  arithmetic bug in the app. Deleted entries appear too, struck through and not
+  clickable, for the same reason — a disappearing expense is the loudest
+  unexplained balance change there is.
 - **Email notifications and debt reminders.** Cut on purpose.
 - **Phone numbers.** Cut. Your name is how people find you; email is only for
   signing in.
@@ -102,8 +109,8 @@ exist, adding your own does not), the **debt-simplification toggle**
 refuses to *edit* a multi-payer expense rather than flatten it silently).
 
 **M2 — Daily driver: started sideways.** The plan's activity feed was cut, then
-partly arrived anyway as the per-expense record and the Recent list on the
-dashboard, which is as much feed as this app seems to want. Search and filter,
+partly arrived anyway as the per-expense record and the Recent activity list on
+the dashboard, which is as much feed as this app seems to want. Search and filter,
 recurring expenses, CSV export and charts are untouched. Comments on expenses
 are untouched, though `expense_events` is now the obvious place to hang them.
 
@@ -127,10 +134,13 @@ right and the plan is stale:
 1. **Search and filter** on expenses — the first thing that hurts once a group
    has fifty of them.
 2. **Hide settled-up friends and groups** behind a "show N settled" toggle.
-3. **Restore a deleted expense.** Deletion is already soft and now recorded, but
-   a deleted expense simply vanishes: `getExpense` filters `deleted_at is null`,
-   so there is no screen to restore from. Splitwise shows the struck-through
-   expense with a Restore button, and the groundwork is in place for it.
+3. **Restore a deleted expense.** Deletion is already soft and recorded, and
+   since 20 August a deleted expense is visible again — struck through, in
+   Recent activity, saying who removed it and when. What it still has nowhere
+   to go: `getExpense` filters `deleted_at is null`, so the row does not link
+   anywhere and there is no screen to restore from. Splitwise puts a Restore
+   button on exactly that struck-through card, and everything but the button
+   now exists.
 
 Then, in rough order: **user-created categories** · the **debt-simplification
 toggle** · **multi-payer UI** · **comments on expenses** (hang them off
@@ -188,6 +198,19 @@ risks a hydration mismatch. `formatCents` now assembles the string itself from
 the integer cents: comma for thousands, full stop for decimals, symbol in front.
 The money tests assert exact strings for that reason; the older ones checked
 only that the output contained "234", which is how the drift went unnoticed.
+
+**Dates are assembled by hand too, for the same reason as money.**
+`src/core/time.ts` holds `MONTH_ABBR`, `formatDayMonth` and
+`formatRelativeTime`; nothing in a list calls `toLocaleDateString`. `ExpenseRow`
+did, and it was the last one — a server-rendered month name and a
+browser-rendered one need not agree.
+
+**Recent is sorted by `expense_events` / `settlement_events`, not by
+`expense_date`.** `listRecentActivity` takes the newest event per row and
+orders on that, falling back to the row's own `created_at` for anything written
+before those tables existed (13 and 18 August). Sorting by the date on the
+expense is what let a backdated entry move a balance invisibly. If you ever
+make the record editable, this ordering becomes editable with it.
 
 **A successful Server Action that redirects has not navigated yet** when its
 promise settles. Leave the button disabled rather than restoring it, or it comes

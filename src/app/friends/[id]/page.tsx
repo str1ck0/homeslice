@@ -33,6 +33,13 @@ export default async function FriendPage({ params }: { params: Promise<{ id: str
     listSettlementsWithPerson(profile.id, friend.profileId),
   ])
 
+  // Group name for anything that came from one. This list mixes group and
+  // one-off entries — an expense you shared inside a house still sits between
+  // the two of you — and without the label a group expense reads as a private
+  // one, which is a different thing entirely.
+  const groupNameFor = (groupId: string | null) =>
+    groupId ? (overview.groupNames.get(groupId) ?? 'a group') : null
+
   // One ledger, not two. A payment and an expense both change what you owe, so
   // hiding one of them is how a balance ends up with no visible cause.
   const entries = [
@@ -104,11 +111,18 @@ export default async function FriendPage({ params }: { params: Promise<{ id: str
             {entries.map((entry) =>
               entry.kind === 'expense' ? (
                 <li key={`e-${entry.expense.id}`}>
-                  <ExpenseRow expense={entry.expense} />
+                  <ExpenseRow
+                    expense={entry.expense}
+                    groupName={groupNameFor(entry.expense.groupId)}
+                  />
                 </li>
               ) : (
                 <li key={`s-${entry.settlement.id}`}>
-                  <SettlementRow settlement={entry.settlement} currentProfileId={profile.id} />
+                  <SettlementRow
+                    settlement={entry.settlement}
+                    currentProfileId={profile.id}
+                    groupName={groupNameFor(entry.settlement.groupId)}
+                  />
                 </li>
               )
             )}

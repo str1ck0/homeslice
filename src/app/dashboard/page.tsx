@@ -4,8 +4,7 @@ import { getCurrentProfile } from '@/server/services/session'
 import { getOverview } from '@/server/services/overview'
 import { listFriends } from '@/server/services/friends'
 import { listMyGroups } from '@/server/services/groups'
-import { listRecentSettlements } from '@/server/services/settlements'
-import { createClient } from '@/lib/supabase/server'
+import { listRecentActivity } from '@/server/services/activity'
 import {
   BalanceSummary,
   Card,
@@ -27,64 +26,15 @@ export default async function DashboardPage({
   const profile = await getCurrentProfile()
   if (!profile) redirect('/auth')
 
-  const supabase = await createClient()
-  const [overview, groups, friends, settlements, { data: recentRows }] = await Promise.all([
+  const [overview, groups, friends, activity] = await Promise.all([
     getOverview(profile.id),
     listMyGroups(),
     listFriends(),
-    listRecentSettlements(10),
-    // Everything recent, group or not. The dashboard used to list only groups,
-    // which left a one-off split invisible the moment it was created.
-    supabase
-      .from('expenses')
-      .select(
-        `id, description, amount_cents, currency, expense_date,
-         expense_participants(profile_id, paid_cents, owed_cents, profiles(display_name)),
-         expense_images(count)`
-      )
-      .is('deleted_at', null)
-      .order('expense_date', { ascending: false })
-      .order('created_at', { ascending: false })
-      .limit(10),
+    // Ordered by when somebody last touched it, not by the date written on it.
+    // A backdated expense is still news; sorting by expense_date buried it
+    // below everything else while the balance it moved stayed on screen.
+    listRecentActivity(profile.id, 30),
   ])
-
-  const recent = (recentRows ?? []).map((expense) => {
-    const participants = (expense.expense_participants ?? []) as unknown as {
-      profile_id: string
-      paid_cents: number
-      owed_cents: number
-      profiles: { display_name: string } | null
-    }[]
-    const mine = participants.find((p) => p.profile_id === profile.id)
-    return {
-      id: expense.id,
-      description: expense.description,
-      amountCents: expense.amount_cents,
-      currency: expense.currency,
-      expenseDate: expense.expense_date,
-      paidByNames: participants
-        .filter((p) => p.paid_cents > 0)
-        .map((p) => p.profiles?.display_name ?? 'Someone'),
-      yourShareCents: mine?.owed_cents ?? 0,
-      yourPaidCents: mine?.paid_cents ?? 0,
-      imageCount:
-        (expense.expense_images as unknown as { count: number }[] | null)?.[0]?.count ?? 0,
-    }
-  })
-
-  // Payments belong in Recent for the same reason expenses do: they are the
-  // other half of what moves a balance, and one without the other is a story
-  // with pages missing.
-  const entries = [
-    ...recent.map((expense) => ({ kind: 'expense' as const, date: expense.expenseDate, expense })),
-    ...settlements.map((settlement) => ({
-      kind: 'settlement' as const,
-      date: settlement.settledOn,
-      settlement,
-    })),
-  ]
-    .sort((a, b) => b.date.localeCompare(a.date))
-    .slice(0, 10)
 
   const owed = [...overview.overall.values()].some((cents) => cents > 0)
   const isNew = groups.length === 0 && friends.length === 0
@@ -155,22 +105,33 @@ export default async function DashboardPage({
       ) : (
         <section>
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted">
-            Recent
+            Recent activity
           </h2>
-          {entries.length === 0 ? (
+          {activity.length === 0 ? (
             <Card className="p-5">
               <p className="text-sm text-muted">No expenses yet.</p>
             </Card>
           ) : (
             <ul className="flex flex-col gap-2">
-              {entries.map((entry) =>
+              {activity.map((entry) =>
                 entry.kind === 'expense' ? (
-                  <li key={`e-${entry.expense.id}`}>
-                    <ExpenseRow expense={entry.expense} />
+                  <li key={`e-${entry.id}`}>
+                    <ExpenseRow
+                      expense={entry.expense}
+                      groupName={entry.groupName}
+                      activity={entry.stamp}
+                      deleted={entry.deleted}
+                    />
                   </li>
                 ) : (
-                  <li key={`s-${entry.settlement.id}`}>
-                    <SettlementRow settlement={entry.settlement} currentProfileId={profile.id} />
+                  <li key={`s-${entry.id}`}>
+                    <SettlementRow
+                      settlement={entry.settlement}
+                      currentProfileId={profile.id}
+                      groupName={entry.groupName}
+                      activity={entry.stamp}
+                      deleted={entry.deleted}
+                    />
                   </li>
                 )
               )}

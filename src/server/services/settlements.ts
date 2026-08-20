@@ -365,22 +365,3 @@ export async function listSettlementEvents(settlementId: string): Promise<Settle
     }
   })
 }
-
-/**
- * The most recent payments you can see, group or not — the dashboard's half of
- * the ledger. Ordered and limited in the query so it stays one round trip.
- */
-export async function listRecentSettlements(limit = 10): Promise<SettlementListItem[]> {
-  const supabase = await createClient()
-
-  const { data, error } = await supabase
-    .from('settlements')
-    .select(LIST_COLUMNS)
-    .is('deleted_at', null)
-    .order('settled_on', { ascending: false })
-    .order('created_at', { ascending: false })
-    .limit(limit)
-
-  if (error) throw new Error(error.message)
-  return (data ?? []).map((row) => toListItem(row as unknown as SettlementRow))
-}

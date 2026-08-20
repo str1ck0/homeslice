@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { formatCents } from '@/core/money'
+import { MONTH_ABBR, formatRelativeTime } from '@/core/time'
 
 export type NavKey = 'home' | 'friends' | 'groups' | 'account'
 
@@ -341,14 +342,129 @@ export function DebtBreakdown({
 }
 
 /**
+ * The chrome every ledger row shares: the date block on the left, a title and
+ * sublines in the middle, your position on the right.
+ *
+ * Split out so an expense and a payment cannot drift apart visually, and so a
+ * deleted entry can be the same shape without being a link — there is no page
+ * for an expense that is gone, and a card that 404s is worse than one that
+ * does not move. A deleted row keeps its amount, struck through: what it once
+ * moved is the reason the balance changed back.
+ */
+function LedgerRow({
+  href,
+  date,
+  title,
+  subline,
+  activity,
+  rightLabel,
+  right,
+  muted = false,
+}: {
+  href: string | null
+  date: Date
+  title: React.ReactNode
+  subline: React.ReactNode
+  activity?: React.ReactNode
+  rightLabel: string
+  right: React.ReactNode
+  muted?: boolean
+}) {
+  const body = (
+    <>
+      <div className="w-10 shrink-0 text-center">
+        <p className="text-xs uppercase text-muted">{MONTH_ABBR[date.getMonth()]}</p>
+        <p className="text-lg font-semibold leading-tight">{date.getDate()}</p>
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <p className={`truncate font-semibold ${muted ? 'line-through' : ''}`}>{title}</p>
+        <p className="truncate text-sm text-muted">{subline}</p>
+        {activity && <p className="truncate text-xs text-muted">{activity}</p>}
+      </div>
+
+      <div className="shrink-0 text-right">
+        <p className="text-xs text-muted">{rightLabel}</p>
+        {/* Struck on the amount alone: text-decoration propagates to
+            descendants and cannot be switched off further down, so striking
+            the whole column would strike the label with it. */}
+        <span className={muted ? 'line-through' : ''}>{right}</span>
+      </div>
+    </>
+  )
+
+  const shell =
+    'flex items-center gap-3 rounded-2xl border border-edge bg-raised p-4 transition-colors'
+
+  return href ? (
+    <Link href={href} className={`${shell} hover:border-accent/50`}>
+      {body}
+    </Link>
+  ) : (
+    <div className={`${shell} opacity-60`}>{body}</div>
+  )
+}
+
+export interface RowActivity {
+  action: 'added' | 'updated' | 'deleted' | 'restored'
+  /** Null when the entry predates the event record, and nobody can be named. */
+  actorName: string | null
+  actorIsYou: boolean
+  at: string
+}
+
+const ACTIVITY_VERB: Record<RowActivity['action'], string> = {
+  added: 'Added',
+  updated: 'Edited',
+  deleted: 'Deleted',
+  restored: 'Restored',
+}
+
+/**
+ * "Edited by lizzardwizzard · 2 hours ago" — why this row is where it is.
+ *
+ * Recent is sorted by when something was touched, not by the date on it, so a
+ * backdated expense can sit at the top with an old date in its corner. Without
+ * this line that looks like a sorting bug.
+ */
+function ActivityNote({ activity }: { activity: RowActivity }) {
+  const who = activity.actorIsYou ? 'you' : activity.actorName
+  const verb = ACTIVITY_VERB[activity.action]
+  return (
+    <>
+      {who ? `${verb} by ${who}` : verb} &middot; {formatRelativeTime(activity.at)}
+    </>
+  )
+}
+
+/** " · Group · Euro 26", or nothing at all outside a group. */
+function GroupNote({ groupName }: { groupName?: string | null }) {
+  if (!groupName) return null
+  return (
+    <>
+      {' '}
+      &middot; <span title="Group expense">Group &middot; {groupName}</span>
+    </>
+  )
+}
+
+/**
  * One expense in a list, laid out the way Splitwise does it: the date on the
  * left, who paid underneath the description, and your position on the right.
  *
  * "you lent" / "you borrowed" reads better than a bare signed number — it says
  * what happened rather than making you infer it from a colour.
+ *
+ * `groupName` marks an expense that came from a group, for the lists that mix
+ * the two. It rides on the existing subline rather than adding anything, so a
+ * group expense and a one-off are the same card in the same shape — the group
+ * page passes nothing, because there every row is in the same group.
  */
 export function ExpenseRow({
   expense,
+  groupName,
+  activity,
+  deleted = false,
 }: {
   expense: {
     id: string
@@ -361,24 +477,20 @@ export function ExpenseRow({
     yourPaidCents: number
     imageCount: number
   }
+  groupName?: string | null
+  activity?: RowActivity
+  deleted?: boolean
 }) {
   const yourNet = expense.yourPaidCents - expense.yourShareCents
   const date = new Date(`${expense.expenseDate}T00:00:00`)
 
   return (
-    <Link
-      href={`/expenses/${expense.id}`}
-      className="flex items-center gap-3 rounded-2xl border border-edge bg-raised p-4 transition-colors hover:border-accent/50"
-    >
-      <div className="w-10 shrink-0 text-center">
-        <p className="text-xs uppercase text-muted">
-          {date.toLocaleDateString(undefined, { month: 'short' })}
-        </p>
-        <p className="text-lg font-semibold leading-tight">{date.getDate()}</p>
-      </div>
-
-      <div className="min-w-0 flex-1">
-        <p className="truncate font-semibold">
+    <LedgerRow
+      href={deleted ? null : `/expenses/${expense.id}`}
+      date={date}
+      muted={deleted}
+      title={
+        <>
           {expense.description}
           {expense.imageCount > 0 && (
             <span
@@ -388,30 +500,34 @@ export function ExpenseRow({
               &#128247;
             </span>
           )}
-        </p>
-        <p className="truncate text-sm text-muted">
+        </>
+      }
+      subline={
+        <>
           {expense.paidByNames.length > 0
             ? `${expense.paidByNames.join(' & ')} paid ${formatCents(expense.amountCents, expense.currency)}`
             : formatCents(expense.amountCents, expense.currency)}
-        </p>
-      </div>
-
-      <div className="shrink-0 text-right">
-        <p className="text-xs text-muted">
-          {yourNet === 0 ? 'not involved' : yourNet > 0 ? 'you lent' : 'you borrowed'}
-        </p>
-        {yourNet !== 0 && (
+          <GroupNote groupName={groupName} />
+        </>
+      }
+      activity={activity && <ActivityNote activity={activity} />}
+      rightLabel={
+        deleted
+          ? 'removed'
+          : yourNet === 0
+            ? 'not involved'
+            : yourNet > 0
+              ? 'you lent'
+              : 'you borrowed'
+      }
+      right={
+        yourNet !== 0 && (
           <Amount cents={yourNet} currency={expense.currency} className="font-semibold" />
-        )}
-      </div>
-    </Link>
+        )
+      }
+    />
   )
 }
-
-const ROW_MONTHS = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-]
 
 /**
  * A recorded payment, sitting in the same list as the expenses it settles.
@@ -425,6 +541,9 @@ const ROW_MONTHS = [
 export function SettlementRow({
   settlement,
   currentProfileId,
+  groupName,
+  activity,
+  deleted = false,
 }: {
   settlement: {
     id: string
@@ -438,6 +557,9 @@ export function SettlementRow({
     toName: string
   }
   currentProfileId: string
+  groupName?: string | null
+  activity?: RowActivity
+  deleted?: boolean
 }) {
   const date = new Date(`${settlement.settledOn}T00:00:00`)
   const youPaid = settlement.fromProfileId === currentProfileId
@@ -454,35 +576,39 @@ export function SettlementRow({
   const yourNet = youPaid ? settlement.amountCents : youWerePaid ? -settlement.amountCents : 0
 
   return (
-    <Link
-      href={`/settlements/${settlement.id}`}
-      className="flex items-center gap-3 rounded-2xl border border-edge bg-raised p-4 transition-colors hover:border-accent/50"
-    >
-      <div className="w-10 shrink-0 text-center">
-        <p className="text-xs uppercase text-muted">{ROW_MONTHS[date.getMonth()]}</p>
-        <p className="text-lg font-semibold leading-tight">{date.getDate()}</p>
-      </div>
-
-      <div className="min-w-0 flex-1">
-        <p className="truncate font-semibold">
+    <LedgerRow
+      href={deleted ? null : `/settlements/${settlement.id}`}
+      date={date}
+      muted={deleted}
+      title={
+        <>
           <span className="mr-1.5 text-muted" title="Payment">
             &#8646;
           </span>
           {headline}
-        </p>
-        <p className="truncate text-sm text-muted">
-          Payment{settlement.method ? ` · ${settlement.method}` : ''}
-        </p>
-      </div>
-
-      <div className="shrink-0 text-right">
-        <p className="text-xs text-muted">
-          {yourNet === 0 ? 'not involved' : yourNet > 0 ? 'you paid' : 'you received'}
-        </p>
+        </>
+      }
+      subline={
+        <>
+          Payment{settlement.method ? ` \u00b7 ${settlement.method}` : ''}
+          <GroupNote groupName={groupName} />
+        </>
+      }
+      activity={activity && <ActivityNote activity={activity} />}
+      rightLabel={
+        deleted
+          ? 'removed'
+          : yourNet === 0
+            ? 'not involved'
+            : yourNet > 0
+              ? 'you paid'
+              : 'you received'
+      }
+      right={
         <span className="amount font-semibold">
           {formatCents(settlement.amountCents, settlement.currency)}
         </span>
-      </div>
-    </Link>
+      }
+    />
   )
 }

@@ -260,6 +260,8 @@ export async function deleteExpense(expenseId: string): Promise<void> {
 
 export interface ExpenseListItem {
   id: string
+  /** Null for a one-off split with no group. */
+  groupId: string | null
   description: string
   amountCents: number
   currency: string
@@ -280,7 +282,7 @@ export async function listExpenses(
   let query = supabase
     .from('expenses')
     .select(
-      `id, description, amount_cents, currency, expense_date,
+      `id, group_id, description, amount_cents, currency, expense_date,
        categories(name),
        expense_participants(profile_id, paid_cents, owed_cents, profiles(display_name, avatar_url)),
        expense_images(count)`
@@ -306,6 +308,7 @@ export async function listExpenses(
 
     return {
       id: expense.id,
+      groupId: expense.group_id,
       description: expense.description,
       amountCents: expense.amount_cents,
       currency: expense.currency,
@@ -465,7 +468,7 @@ export async function listExpensesWithPerson(
   const { data, error } = await supabase
     .from('expenses')
     .select(
-      `id, description, amount_cents, currency, expense_date,
+      `id, group_id, description, amount_cents, currency, expense_date,
        categories(name),
        expense_participants(profile_id, paid_cents, owed_cents, profiles(display_name, avatar_url)),
        expense_images(count)`
@@ -490,6 +493,7 @@ export async function listExpensesWithPerson(
 
       return {
         id: expense.id,
+        groupId: expense.group_id,
         description: expense.description,
         amountCents: expense.amount_cents,
         currency: expense.currency,
