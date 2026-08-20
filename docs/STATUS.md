@@ -3,9 +3,10 @@
 _Last updated: 20 August 2026._
 
 **Live:** https://homeslice-liam-stricklands-projects.vercel.app
-**Repo:** `master`, clean.
-**Database:** Supabase project `zwnhbhymjaqjpuxfcbam` (eu-west-1), active.
-**Tests:** 116 unit + 64 integration, all passing.
+**Repo:** `master`, plus three agent worktrees at `../homeslice-worktrees/`.
+**Databases:** local Supabase stack for development; hosted project
+`zwnhbhymjaqjpuxfcbam` (eu-west-1) for production. See `docs/DATABASE.md`.
+**Tests:** 116 unit + 64 integration, all passing (integration now local, ~2s).
 
 ---
 
@@ -242,9 +243,32 @@ Before 12 August every avatar **write** policy was scoped to the bucket alone �
 including the two named "own" — so any signed-in user could overwrite or delete
 anybody's photo. Two integration tests now hold that line.
 
-**Applying migrations:** `./scripts/db-query.sh -f supabase/migrations/<file>.sql`.
-It reads the Supabase token from the macOS keychain, so there's no password
-anywhere. Regenerate types afterwards:
+**There are two databases now, and development is the local one.** Set up
+20 August; the whole story is in `docs/DATABASE.md`. Before that, all four
+checkouts pointed at production and the integration suite wrote to it — which
+is why the live project carries thirteen profiles behind four real logins.
+`supabase start`, then `npm run dev`. `supabase db reset` replays every
+migration from zero and applies `supabase/seed.sql`.
+
+**The migrations did not describe production, and replaying them from zero is
+what proved it.** Not one of the first thirteen granted `anon` or
+`authenticated` a single privilege on a single table. Production has those
+grants as a side effect of how it was built, so everything worked there; a
+fresh database produced an app that could not read its own tables, reported as
+a permissions error indistinguishable from an RLS bug.
+`20260820000000_explicit_grants.sql` closes it, and `./scripts/db-diff.sh` now
+compares 762 schema objects — privileges included — between local and
+production.
+
+**Production's migration history was adopted on 20 August**, along with the
+grants migration itself (a proven no-op — 762 schema objects identical before
+and after). `supabase_migrations.schema_migrations` now carries all fourteen
+versions, matching local. `supabase db push` still needs a one-time
+`supabase link`, which prompts for the database password.
+
+Applying to production meanwhile:
+`./scripts/db-query.sh --prod -f supabase/migrations/<file>.sql`, then
+`./scripts/db-diff.sh`, then
 `npx supabase gen types typescript --project-id zwnhbhymjaqjpuxfcbam > src/types/database.types.ts`
 
 **`vercel ls` lags.** It has twice shown no deployment when one existed. Trust

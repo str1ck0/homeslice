@@ -30,7 +30,8 @@ A modern web application for managing your sharehouse at 20 Van Breda Street. Sp
 ### Prerequisites
 
 - Node.js 18+ and npm
-- A Supabase account (free tier)
+- A container runtime for the local database — OrbStack or Docker
+- A Supabase account only if you are deploying; not needed to develop
 - A Vercel account (free tier, optional for deployment)
 
 ### 1. Install Dependencies
@@ -39,44 +40,48 @@ A modern web application for managing your sharehouse at 20 Van Breda Street. Sp
 npm install
 ```
 
-### 2. Set Up Supabase
+### 2. Start the local database
 
-1. Go to [supabase.com](https://supabase.com) and create a new project
-2. Once your project is ready, go to Project Settings > API
-3. Copy your project URL and anon/public key
-4. Run the SQL migration:
-   - Go to the SQL Editor in your Supabase dashboard
-   - Copy the contents of `supabase/migrations/001_initial_schema.sql`
-   - Paste and run it
-
-### 3. Configure Environment Variables
-
-Create a `.env.local` file in the root directory:
+Development runs against a Supabase stack on your own machine. You do **not**
+need a Supabase account to work on this app, and you should not point it at the
+hosted project — see [docs/DATABASE.md](docs/DATABASE.md) for why.
 
 ```bash
-cp .env.local.example .env.local
+brew install --cask orbstack   # container runtime, once
+supabase start                 # once per boot
 ```
 
-Edit `.env.local` and add your Supabase credentials:
+That gives you Postgres, Auth, Storage and a mail catcher, applies every
+migration, and loads `supabase/seed.sql` — four invented people with expenses
+in two currencies, a group, payments, and a deleted expense.
 
-```
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-```
+`.env.local` already points at it. The keys in that file are the standard local
+demo keys: identical on every machine that has ever run Supabase locally, and
+worthless outside 127.0.0.1.
 
-### 4. Set Up Storage Bucket (for profile pictures)
-
-1. In Supabase Dashboard, go to Storage
-2. Create a new bucket called `avatars`
-3. Make it public by clicking the bucket > Settings > Make Public
-
-### 5. Run the Development Server
+### 3. Run the development server
 
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+Open [http://localhost:3000](http://localhost:3000) and sign in as
+`devin@homeslice.test` with the password `password123`. Emails the app sends —
+magic links, password resets — land in the mail catcher at
+[http://127.0.0.1:54324](http://127.0.0.1:54324) rather than a real inbox.
+
+### 4. Everyday commands
+
+```bash
+npm test                   # unit tests, no database
+npm run typecheck
+npm run test:integration   # against the local stack
+supabase db reset          # rebuild the database from migrations + seed
+./scripts/db-diff.sh       # does local still match production?
+```
+
+`supabase db reset` is the normal way to undo an experiment. Nothing in the
+local database is worth keeping.
 
 ## Deployment to Vercel
 
