@@ -216,4 +216,13 @@ It is a safety net, not a restorable dump: no `auth.users`, no storage objects,
 no schema. For one of those you need the database password and
 `supabase db dump --linked -f dump.sql`.
 
-There was no backup of any kind before 20 August.
+**This is the only backup that exists.** Checked in the dashboard on 20 August:
+the project is on the Free plan, and *"Free Plan does not include project
+backups"* — no scheduled backups, no point-in-time recovery. Nothing is
+catching a mistake except this script, so run it before anything that writes to
+production, and occasionally when nothing is happening at all.
+
+Finding the settings that say so, since the dashboard has moved them: they are
+under **Database → Backups** in the left sidebar, not Project Settings. Same
+for the database password, which lives under **Database → Settings** and is not
+viewable after creation — only resettable.
