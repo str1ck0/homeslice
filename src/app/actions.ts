@@ -26,6 +26,7 @@ import { updateProfile, setAvatar, type UpdateProfileInput } from '@/server/serv
 import {
   createExpense,
   deleteExpense,
+  restoreExpense,
   updateExpense,
   type ExpenseInput,
 } from '@/server/services/expenses'
@@ -33,6 +34,7 @@ import {
   recordSettlement,
   updateSettlement,
   deleteSettlement,
+  restoreSettlement,
   type SettlementInput,
 } from '@/server/services/settlements'
 import { addFriend, removeFriend } from '@/server/services/friends'
@@ -238,6 +240,23 @@ export async function deleteExpenseAction(
   try {
     await deleteExpense(expenseId)
     revalidatePath('/dashboard')
+    revalidatePath('/friends')
+    if (groupId) revalidatePath(`/groups/${groupId}`)
+    return { ok: true }
+  } catch (error) {
+    return toResult(error)
+  }
+}
+
+export async function restoreExpenseAction(
+  expenseId: string,
+  groupId: string | null
+): Promise<ActionResult> {
+  try {
+    await restoreExpense(expenseId)
+    revalidatePath('/dashboard')
+    revalidatePath('/friends')
+    revalidatePath(`/expenses/${expenseId}`)
     if (groupId) revalidatePath(`/groups/${groupId}`)
     return { ok: true }
   } catch (error) {
@@ -293,6 +312,20 @@ export async function deleteSettlementAction(
   try {
     await deleteSettlement(settlementId)
     revalidateSettlement(input)
+    return { ok: true }
+  } catch (error) {
+    return toResult(error)
+  }
+}
+
+export async function restoreSettlementAction(
+  settlementId: string,
+  input: { groupId: string | null; fromProfileId: string; toProfileId: string }
+): Promise<ActionResult> {
+  try {
+    await restoreSettlement(settlementId)
+    revalidateSettlement(input)
+    revalidatePath(`/settlements/${settlementId}`)
     return { ok: true }
   } catch (error) {
     return toResult(error)

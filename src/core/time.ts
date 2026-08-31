@@ -13,6 +13,11 @@ export const MONTH_ABBR = [
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ] as const
 
+export const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+] as const
+
 const MINUTE = 60_000
 const HOUR = 60 * MINUTE
 const DAY = 24 * HOUR
@@ -21,6 +26,16 @@ const DAY = 24 * HOUR
 export function formatDayMonth(date: Date, now: Date = new Date()): string {
   const stem = `${date.getDate()} ${MONTH_ABBR[date.getMonth()]}`
   return date.getFullYear() === now.getFullYear() ? stem : `${stem} ${date.getFullYear()}`
+}
+
+/** "14 August 2026" — the long form, for a detail page rather than a list. */
+export function formatLongDate(date: Date): string {
+  return `${date.getDate()} ${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}`
+}
+
+/** "14 Aug 2026" — always with the year, for a history line. */
+export function formatFullDate(date: Date): string {
+  return `${date.getDate()} ${MONTH_ABBR[date.getMonth()]} ${date.getFullYear()}`
 }
 
 /**

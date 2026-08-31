@@ -258,10 +258,40 @@ export async function deleteExpense(expenseId: string): Promise<void> {
   await recordEvent(expenseId, me.id, 'deleted')
 }
 
+/**
+ * Undo the delete. The mirror of deleteExpense, and the reason it was ever a
+ * soft delete.
+ *
+ * `.not('deleted_at', 'is', null)` is what makes a second restore a no-op
+ * rather than a lie: without it, restoring an expense that is already live
+ * would succeed and append a "restored" line to a history where nothing
+ * happened.
+ */
+export async function restoreExpense(expenseId: string): Promise<void> {
+  const me = await requireProfile()
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('expenses')
+    .update({ deleted_at: null })
+    .eq('id', expenseId)
+    .not('deleted_at', 'is', null)
+    .select('id')
+
+  if (error) throw new Error(error.message)
+  if (!data || data.length === 0) {
+    throw new Error('Only someone in this expense can restore it')
+  }
+
+  await recordEvent(expenseId, me.id, 'restored')
+}
+
 export interface ExpenseListItem {
   id: string
   /** Null for a one-off split with no group. */
   groupId: string | null
+  /** Non-null when the expense is deleted — only ever populated on request. */
+  deletedAt: string | null
   description: string
   amountCents: number
   currency: string
@@ -275,22 +305,23 @@ export interface ExpenseListItem {
 
 export async function listExpenses(
   groupId: string | null,
-  profileId: string
+  profileId: string,
+  { includeDeleted = false }: { includeDeleted?: boolean } = {}
 ): Promise<ExpenseListItem[]> {
   const supabase = await createClient()
 
   let query = supabase
     .from('expenses')
     .select(
-      `id, group_id, description, amount_cents, currency, expense_date,
+      `id, group_id, description, amount_cents, currency, expense_date, deleted_at,
        categories(name),
        expense_participants(profile_id, paid_cents, owed_cents, profiles(display_name, avatar_url)),
        expense_images(count)`
     )
-    .is('deleted_at', null)
     .order('expense_date', { ascending: false })
     .order('created_at', { ascending: false })
 
+  if (!includeDeleted) query = query.is('deleted_at', null)
   query = groupId ? query.eq('group_id', groupId) : query.is('group_id', null)
 
   const { data, error } = await query
@@ -309,6 +340,7 @@ export async function listExpenses(
     return {
       id: expense.id,
       groupId: expense.group_id,
+      deletedAt: expense.deleted_at,
       description: expense.description,
       amountCents: expense.amount_cents,
       currency: expense.currency,
@@ -374,6 +406,8 @@ export interface ExpenseDetail {
   categoryName: string | null
   createdBy: string
   createdByName: string
+  /** Non-null means the expense is deleted and is being shown to explain itself. */
+  deletedAt: string | null
   participants: {
     profileId: string
     displayName: string
@@ -384,22 +418,35 @@ export interface ExpenseDetail {
   imageIds: string[]
 }
 
-export async function getExpense(expenseId: string): Promise<ExpenseDetail | null> {
+/**
+ * One expense in full.
+ *
+ * Deleted expenses are hidden unless asked for. Opt-in rather than opt-out
+ * because most callers must not see one: the edit form would offer to change
+ * an expense that is not there, and updateExpense reads through here to build
+ * its before-and-after.
+ */
+export async function getExpense(
+  expenseId: string,
+  { includeDeleted = false }: { includeDeleted?: boolean } = {}
+): Promise<ExpenseDetail | null> {
   const supabase = await createClient()
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('expenses')
     .select(
       `id, group_id, description, amount_cents, currency, expense_date, split_type, note,
-       created_by,
+       created_by, deleted_at,
        categories(name),
        author:profiles!expenses_created_by_fkey(display_name),
        expense_participants(profile_id, paid_cents, owed_cents, profiles(display_name, avatar_url)),
        expense_images(id, sort_order)`
     )
     .eq('id', expenseId)
-    .is('deleted_at', null)
-    .single()
+
+  if (!includeDeleted) query = query.is('deleted_at', null)
+
+  const { data, error } = await query.maybeSingle()
 
   if (error || !data) return null
 
@@ -428,6 +475,7 @@ export async function getExpense(expenseId: string): Promise<ExpenseDetail | nul
     createdBy: data.created_by,
     createdByName:
       (data.author as unknown as { display_name: string } | null)?.display_name ?? 'Someone',
+    deletedAt: data.deleted_at,
     participants: participants.map((p) => ({
       profileId: p.profile_id,
       displayName: p.profiles?.display_name ?? 'Someone',
@@ -449,7 +497,8 @@ export async function getExpense(expenseId: string): Promise<ExpenseDetail | nul
  */
 export async function listExpensesWithPerson(
   profileId: string,
-  otherProfileId: string
+  otherProfileId: string,
+  { includeDeleted = false }: { includeDeleted?: boolean } = {}
 ): Promise<ExpenseListItem[]> {
   const supabase = await createClient()
 
@@ -465,18 +514,21 @@ export async function listExpensesWithPerson(
   const ids = (theirRows ?? []).map((row) => row.expense_id)
   if (ids.length === 0) return []
 
-  const { data, error } = await supabase
+  let listQuery = supabase
     .from('expenses')
     .select(
-      `id, group_id, description, amount_cents, currency, expense_date,
+      `id, group_id, description, amount_cents, currency, expense_date, deleted_at,
        categories(name),
        expense_participants(profile_id, paid_cents, owed_cents, profiles(display_name, avatar_url)),
        expense_images(count)`
     )
     .in('id', ids)
-    .is('deleted_at', null)
     .order('expense_date', { ascending: false })
     .order('created_at', { ascending: false })
+
+  if (!includeDeleted) listQuery = listQuery.is('deleted_at', null)
+
+  const { data, error } = await listQuery
 
   if (error) throw new Error(error.message)
 
@@ -494,6 +546,7 @@ export async function listExpensesWithPerson(
       return {
         id: expense.id,
         groupId: expense.group_id,
+        deletedAt: expense.deleted_at,
         description: expense.description,
         amountCents: expense.amount_cents,
         currency: expense.currency,

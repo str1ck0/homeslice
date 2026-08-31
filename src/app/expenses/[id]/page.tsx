@@ -4,7 +4,9 @@ import { getCurrentProfile } from '@/server/services/session'
 import { getExpense, listExpenseEvents } from '@/server/services/expenses'
 import { Amount, Avatar, Card } from '@/components/ui'
 import { formatCents } from '@/core/money'
+import { formatFullDate, formatLongDate } from '@/core/time'
 import DeleteExpenseButton from './DeleteExpenseButton'
+import RestoreExpenseButton from './RestoreExpenseButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,18 +15,6 @@ const EVENT_VERBS: Record<string, string> = {
   updated: 'edited',
   deleted: 'deleted',
   restored: 'restored',
-}
-
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-
-/**
- * Dates only — the hour something was edited is noise a week later. Assembled
- * by hand for the same reason money is: toLocaleDateString reads the runtime's
- * locale data, and Node's does not always agree with the browser's.
- */
-function formatWhen(iso: string): string {
-  const when = new Date(iso)
-  return `${when.getDate()} ${MONTHS[when.getMonth()]} ${when.getFullYear()}`
 }
 
 const SPLIT_LABELS: Record<string, string> = {
@@ -40,8 +30,13 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
   const profile = await getCurrentProfile()
   if (!profile) redirect('/auth')
 
-  const expense = await getExpense(id)
+  // Deleted expenses are shown rather than 404'd. A vanished expense is an
+  // unexplained balance change, and this page is where the explanation lives —
+  // who deleted it, when, and the button to undo it.
+  const expense = await getExpense(id, { includeDeleted: true })
   if (!expense) notFound()
+
+  const isDeleted = expense.deletedAt !== null
 
   const events = await listExpenseEvents(id)
 
@@ -59,8 +54,25 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
         ← Back
       </Link>
 
+      {isDeleted && (
+        <div
+          role="status"
+          className="rounded-2xl border border-edge bg-raised p-4 text-sm text-muted"
+        >
+          <p className="font-semibold text-ink">This expense was deleted.</p>
+          <p className="mt-1">
+            It no longer counts towards anybody&rsquo;s balance. Everything below is
+            what it was, kept so the change it made can be explained — and undone.
+          </p>
+        </div>
+      )}
+
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-balance">{expense.description}</h1>
+        <h1
+          className={`text-2xl font-bold tracking-tight text-balance ${isDeleted ? 'text-muted line-through' : ''}`}
+        >
+          {expense.description}
+        </h1>
         <p className="amount mt-1 text-3xl font-bold">
           {formatCents(expense.amountCents, expense.currency)}
         </p>
@@ -69,11 +81,7 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
             ? `${payers.map((p) => p.displayName).join(' & ')} paid`
             : 'No payer recorded'}
           {' · '}
-          {new Date(`${expense.expenseDate}T00:00:00`).toLocaleDateString(undefined, {
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric',
-          })}
+          {formatLongDate(new Date(`${expense.expenseDate}T00:00:00`))}
           {expense.categoryName ? ` · ${expense.categoryName}` : ''}
         </p>
       </div>
@@ -81,7 +89,13 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
       {yours && (
         <Card className="flex items-baseline justify-between gap-4 p-5">
           <span className="text-sm text-muted">
-            {yourNet > 0 ? 'You lent' : yourNet < 0 ? 'You owe' : 'You are square on this'}
+            {isDeleted
+              ? 'This had you at'
+              : yourNet > 0
+                ? 'You lent'
+                : yourNet < 0
+                  ? 'You owe'
+                  : 'You are square on this'}
           </span>
           {yourNet !== 0 && (
             <Amount cents={yourNet} currency={expense.currency} className="text-xl font-bold" />
@@ -165,7 +179,7 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
                       {event.actorName === profile.display_name ? 'You' : event.actorName}
                     </span>{' '}
                     {EVENT_VERBS[event.kind] ?? event.kind} this expense
-                    <span className="text-muted"> · {formatWhen(event.createdAt)}</span>
+                    <span className="text-muted"> · {formatFullDate(new Date(event.createdAt))}</span>
                   </p>
                   {event.changes.length > 0 && (
                     <ul className="mt-1 flex flex-col gap-0.5">
@@ -190,17 +204,20 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
         </section>
       )}
 
-      {canEdit && (
-        <>
-          <Link
-            href={`/expenses/${expense.id}/edit`}
-            className="mt-2 block rounded-xl border border-accent px-4 py-3 text-center text-sm font-semibold text-accent"
-          >
-            Edit expense
-          </Link>
-          <DeleteExpenseButton expenseId={expense.id} groupId={expense.groupId} />
-        </>
-      )}
+      {canEdit &&
+        (isDeleted ? (
+          <RestoreExpenseButton expenseId={expense.id} groupId={expense.groupId} />
+        ) : (
+          <>
+            <Link
+              href={`/expenses/${expense.id}/edit`}
+              className="mt-2 block rounded-xl border border-accent px-4 py-3 text-center text-sm font-semibold text-accent"
+            >
+              Edit expense
+            </Link>
+            <DeleteExpenseButton expenseId={expense.id} groupId={expense.groupId} />
+          </>
+        ))}
     </div>
   )
 }

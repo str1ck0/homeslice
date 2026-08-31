@@ -155,6 +155,7 @@ export async function listRecentActivity(
       expense: {
         id: row.id,
         groupId: row.group_id,
+        deletedAt: row.deleted_at,
         description: row.description,
         amountCents: row.amount_cents,
         currency: row.currency,
@@ -192,6 +193,7 @@ export async function listRecentActivity(
       settlement: {
         id: row.id,
         groupId: row.group_id,
+        deletedAt: row.deleted_at,
         amountCents: row.amount_cents,
         currency: row.currency,
         settledOn: row.settled_on,

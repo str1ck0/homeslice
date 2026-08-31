@@ -4,7 +4,9 @@ import { getCurrentProfile } from '@/server/services/session'
 import { getSettlement, listSettlementEvents } from '@/server/services/settlements'
 import { Avatar, Card } from '@/components/ui'
 import { formatCents } from '@/core/money'
+import { formatFullDate, formatLongDate } from '@/core/time'
 import DeleteSettlementButton from './DeleteSettlementButton'
+import RestoreSettlementButton from './RestoreSettlementButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,21 +17,16 @@ const EVENT_VERBS: Record<string, string> = {
   restored: 'restored',
 }
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-
-/** Dates only, assembled by hand — the same reasoning as the expense page. */
-function formatWhen(iso: string): string {
-  const when = new Date(iso)
-  return `${when.getDate()} ${MONTHS[when.getMonth()]} ${when.getFullYear()}`
-}
-
 export default async function SettlementPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const profile = await getCurrentProfile()
   if (!profile) redirect('/auth')
 
-  const settlement = await getSettlement(id)
+  // Undone payments are shown, not 404'd — see the expense page for why.
+  const settlement = await getSettlement(id, { includeDeleted: true })
   if (!settlement) notFound()
+
+  const isDeleted = settlement.deletedAt !== null
 
   const events = await listSettlementEvents(id)
 
@@ -55,9 +52,24 @@ export default async function SettlementPage({ params }: { params: Promise<{ id:
         ← Back
       </Link>
 
+      {isDeleted && (
+        <div
+          role="status"
+          className="rounded-2xl border border-edge bg-raised p-4 text-sm text-muted"
+        >
+          <p className="font-semibold text-ink">This payment was undone.</p>
+          <p className="mt-1">
+            It no longer counts towards anybody&rsquo;s balance. Everything below is
+            what it was, kept so the change it made can be explained — and undone.
+          </p>
+        </div>
+      )}
+
       <div>
         <p className="text-sm font-semibold uppercase tracking-wider text-muted">Payment</p>
-        <h1 className="mt-1 text-2xl font-bold tracking-tight text-balance">
+        <h1
+          className={`mt-1 text-2xl font-bold tracking-tight text-balance ${isDeleted ? 'text-muted line-through' : ''}`}
+        >
           {youPaid
             ? `You paid ${settlement.toName}`
             : youWerePaid
@@ -68,11 +80,7 @@ export default async function SettlementPage({ params }: { params: Promise<{ id:
           {formatCents(settlement.amountCents, settlement.currency)}
         </p>
         <p className="mt-2 text-sm text-muted">
-          {new Date(`${settlement.settledOn}T00:00:00`).toLocaleDateString(undefined, {
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric',
-          })}
+          {formatLongDate(new Date(`${settlement.settledOn}T00:00:00`))}
           {settlement.method ? ` · ${settlement.method}` : ''}
           {settlement.groupName ? ` · ${settlement.groupName}` : ''}
         </p>
@@ -141,7 +149,7 @@ export default async function SettlementPage({ params }: { params: Promise<{ id:
                       {event.actorName === profile.display_name ? 'You' : event.actorName}
                     </span>{' '}
                     {EVENT_VERBS[event.kind] ?? event.kind} this payment
-                    <span className="text-muted"> · {formatWhen(event.createdAt)}</span>
+                    <span className="text-muted"> · {formatFullDate(new Date(event.createdAt))}</span>
                   </p>
                   {event.changes.length > 0 && (
                     <ul className="mt-1 flex flex-col gap-0.5">
@@ -166,23 +174,31 @@ export default async function SettlementPage({ params }: { params: Promise<{ id:
         </section>
       )}
 
-      {canEdit && (
-        <>
-          <Link
-            href={`/settlements/${settlement.id}/edit`}
-            className="mt-2 block rounded-xl border border-accent px-4 py-3 text-center text-sm font-semibold text-accent"
-          >
-            Edit payment
-          </Link>
-          <DeleteSettlementButton
+      {canEdit &&
+        (isDeleted ? (
+          <RestoreSettlementButton
             settlementId={settlement.id}
             groupId={settlement.groupId}
             fromProfileId={settlement.fromProfileId}
             toProfileId={settlement.toProfileId}
-            backHref={backHref}
           />
-        </>
-      )}
+        ) : (
+          <>
+            <Link
+              href={`/settlements/${settlement.id}/edit`}
+              className="mt-2 block rounded-xl border border-accent px-4 py-3 text-center text-sm font-semibold text-accent"
+            >
+              Edit payment
+            </Link>
+            <DeleteSettlementButton
+              settlementId={settlement.id}
+              groupId={settlement.groupId}
+              fromProfileId={settlement.fromProfileId}
+              toProfileId={settlement.toProfileId}
+              backHref={backHref}
+            />
+          </>
+        ))}
     </div>
   )
 }

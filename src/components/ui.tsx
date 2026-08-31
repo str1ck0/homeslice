@@ -346,10 +346,13 @@ export function DebtBreakdown({
  * sublines in the middle, your position on the right.
  *
  * Split out so an expense and a payment cannot drift apart visually, and so a
- * deleted entry can be the same shape without being a link — there is no page
- * for an expense that is gone, and a card that 404s is worse than one that
- * does not move. A deleted row keeps its amount, struck through: what it once
- * moved is the reason the balance changed back.
+ * deleted entry can be the same shape while reading as struck through. It
+ * keeps its amount: what it once moved is the reason the balance changed back.
+ *
+ * Deleted rows link like any other. They did not, briefly, because there was
+ * no page willing to render a deleted expense and the link 404'd — now the
+ * detail page shows one, says who removed it, and offers to put it back, which
+ * makes the card the way in rather than a dead end.
  */
 function LedgerRow({
   href,
@@ -397,7 +400,7 @@ function LedgerRow({
     'flex items-center gap-3 rounded-2xl border border-edge bg-raised p-4 transition-colors'
 
   return href ? (
-    <Link href={href} className={`${shell} hover:border-accent/50`}>
+    <Link href={href} className={`${shell} hover:border-accent/50 ${muted ? 'opacity-60' : ''}`}>
       {body}
     </Link>
   ) : (
@@ -486,7 +489,7 @@ export function ExpenseRow({
 
   return (
     <LedgerRow
-      href={deleted ? null : `/expenses/${expense.id}`}
+      href={`/expenses/${expense.id}`}
       date={date}
       muted={deleted}
       title={
@@ -577,7 +580,7 @@ export function SettlementRow({
 
   return (
     <LedgerRow
-      href={deleted ? null : `/settlements/${settlement.id}`}
+      href={`/settlements/${settlement.id}`}
       date={date}
       muted={deleted}
       title={

@@ -197,9 +197,34 @@ export async function deleteSettlement(settlementId: string): Promise<void> {
   await recordEvent(settlementId, me.id, 'deleted')
 }
 
+/**
+ * Undo the undo. Mirrors restoreExpense, for the same reason and with the same
+ * guard against restoring something that was never deleted.
+ */
+export async function restoreSettlement(settlementId: string): Promise<void> {
+  const me = await requireProfile()
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('settlements')
+    .update({ deleted_at: null })
+    .eq('id', settlementId)
+    .not('deleted_at', 'is', null)
+    .select('id')
+
+  if (error) throw new Error(error.message)
+  if (!data || data.length === 0) {
+    throw new Error('Only someone in this payment can restore it')
+  }
+
+  await recordEvent(settlementId, me.id, 'restored')
+}
+
 export interface SettlementListItem {
   id: string
   groupId: string | null
+  /** Non-null when the payment is undone — only ever populated on request. */
+  deletedAt: string | null
   amountCents: number
   currency: string
   settledOn: string
@@ -210,7 +235,7 @@ export interface SettlementListItem {
   toName: string
 }
 
-const LIST_COLUMNS = `id, group_id, amount_cents, currency, method, note, settled_on,
+const LIST_COLUMNS = `id, group_id, amount_cents, currency, method, note, settled_on, deleted_at,
    from_profile, to_profile,
    payer:profiles!settlements_from_profile_fkey(display_name),
    payee:profiles!settlements_to_profile_fkey(display_name)`
@@ -218,6 +243,7 @@ const LIST_COLUMNS = `id, group_id, amount_cents, currency, method, note, settle
 interface SettlementRow {
   id: string
   group_id: string | null
+  deleted_at: string | null
   amount_cents: number
   currency: string
   method: string | null
@@ -232,6 +258,7 @@ function toListItem(row: SettlementRow): SettlementListItem {
   return {
     id: row.id,
     groupId: row.group_id,
+    deletedAt: row.deleted_at,
     amountCents: row.amount_cents,
     currency: row.currency,
     settledOn: row.settled_on,
@@ -244,16 +271,19 @@ function toListItem(row: SettlementRow): SettlementListItem {
 }
 
 /** Payments inside one group, or — with null — every one-off payment. */
-export async function listSettlements(groupId: string | null): Promise<SettlementListItem[]> {
+export async function listSettlements(
+  groupId: string | null,
+  { includeDeleted = false }: { includeDeleted?: boolean } = {}
+): Promise<SettlementListItem[]> {
   const supabase = await createClient()
 
   let query = supabase
     .from('settlements')
     .select(LIST_COLUMNS)
-    .is('deleted_at', null)
     .order('settled_on', { ascending: false })
     .order('created_at', { ascending: false })
 
+  if (!includeDeleted) query = query.is('deleted_at', null)
   query = groupId ? query.eq('group_id', groupId) : query.is('group_id', null)
 
   const { data, error } = await query
@@ -267,20 +297,24 @@ export async function listSettlements(groupId: string | null): Promise<Settlemen
  */
 export async function listSettlementsWithPerson(
   profileId: string,
-  otherProfileId: string
+  otherProfileId: string,
+  { includeDeleted = false }: { includeDeleted?: boolean } = {}
 ): Promise<SettlementListItem[]> {
   const supabase = await createClient()
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('settlements')
     .select(LIST_COLUMNS)
-    .is('deleted_at', null)
     .or(
       `and(from_profile.eq.${profileId},to_profile.eq.${otherProfileId}),` +
         `and(from_profile.eq.${otherProfileId},to_profile.eq.${profileId})`
     )
     .order('settled_on', { ascending: false })
     .order('created_at', { ascending: false })
+
+  if (!includeDeleted) query = query.is('deleted_at', null)
+
+  const { data, error } = await query
 
   if (error) throw new Error(error.message)
   return (data ?? []).map((row) => toListItem(row as unknown as SettlementRow))
@@ -291,15 +325,21 @@ export interface SettlementDetail extends SettlementListItem {
   createdBy: string
   createdByName: string
   groupName: string | null
+  /** Non-null means the payment is undone and is being shown to explain itself. */
+  deletedAt: string | null
 }
 
-export async function getSettlement(settlementId: string): Promise<SettlementDetail | null> {
+/** One payment in full. Deleted ones are hidden unless asked for — see getExpense. */
+export async function getSettlement(
+  settlementId: string,
+  { includeDeleted = false }: { includeDeleted?: boolean } = {}
+): Promise<SettlementDetail | null> {
   const supabase = await createClient()
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('settlements')
     .select(
-      `id, group_id, amount_cents, currency, method, note, settled_on, created_by,
+      `id, group_id, amount_cents, currency, method, note, settled_on, created_by, deleted_at,
        from_profile, to_profile,
        payer:profiles!settlements_from_profile_fkey(display_name),
        payee:profiles!settlements_to_profile_fkey(display_name),
@@ -307,8 +347,10 @@ export async function getSettlement(settlementId: string): Promise<SettlementDet
        groups(name)`
     )
     .eq('id', settlementId)
-    .is('deleted_at', null)
-    .maybeSingle()
+
+  if (!includeDeleted) query = query.is('deleted_at', null)
+
+  const { data, error } = await query.maybeSingle()
 
   if (error) throw new Error(error.message)
   if (!data) return null
@@ -316,6 +358,7 @@ export async function getSettlement(settlementId: string): Promise<SettlementDet
   const row = data as unknown as SettlementRow & {
     note: string | null
     created_by: string
+    deleted_at: string | null
     author: { display_name: string } | null
     groups: { name: string } | null
   }
@@ -326,6 +369,7 @@ export async function getSettlement(settlementId: string): Promise<SettlementDet
     createdBy: row.created_by,
     createdByName: row.author?.display_name ?? 'Someone',
     groupName: row.groups?.name ?? null,
+    deletedAt: row.deleted_at,
   }
 }
 

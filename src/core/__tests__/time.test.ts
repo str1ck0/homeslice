@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { formatDayMonth, formatRelativeTime } from '../time'
+import {
+  formatDayMonth,
+  formatFullDate,
+  formatLongDate,
+  formatRelativeTime,
+} from '../time'
 
 const now = new Date('2026-08-20T12:00:00Z')
 
@@ -39,5 +44,19 @@ describe('formatDayMonth', () => {
   it('never uses toLocaleDateString, so server and browser agree', () => {
     expect(formatDayMonth(new Date('2026-01-05T00:00:00'), now)).toBe('5 Jan')
     expect(formatDayMonth(new Date('2024-11-30T00:00:00'), now)).toBe('30 Nov 2024')
+  })
+})
+
+describe('formatLongDate and formatFullDate', () => {
+  it('spell the month out, or abbreviate it, without touching locale data', () => {
+    const date = new Date('2026-08-14T00:00:00')
+    expect(formatLongDate(date)).toBe('14 August 2026')
+    expect(formatFullDate(date)).toBe('14 Aug 2026')
+  })
+
+  it('always carries the year, unlike formatDayMonth', () => {
+    const thisYear = new Date('2026-01-05T00:00:00')
+    expect(formatFullDate(thisYear)).toBe('5 Jan 2026')
+    expect(formatDayMonth(thisYear, new Date('2026-08-31T00:00:00'))).toBe('5 Jan')
   })
 })
