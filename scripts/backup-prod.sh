@@ -20,8 +20,17 @@ cd "$(dirname "$0")/.."
 OUT_DIR="${HOMESLICE_BACKUP_DIR:-$HOME/homeslice-backups}"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 DEST="$OUT_DIR/$STAMP"
-mkdir -p "$DEST"
-chmod 700 "$OUT_DIR" "$DEST"
+
+# Built under a .partial name and renamed only once every table has been
+# written. A half-finished snapshot must never be indistinguishable from a
+# complete one: the scheduled wrapper prunes by keeping the N most recent
+# directories, so a run of failures would otherwise evict good backups and
+# leave empty ones in their place.
+WORK="$DEST.partial"
+rm -rf "$WORK"
+mkdir -p "$WORK"
+chmod 700 "$OUT_DIR" "$WORK"
+trap 'rm -rf "$WORK"' EXIT
 
 TABLES="$(./scripts/db-query.sh --prod "select table_name from information_schema.tables where table_schema='public' and table_type='BASE TABLE' order by table_name;" \
   | python3 -c "import json,sys; print(' '.join(r['table_name'] for r in json.load(sys.stdin)))")"
@@ -29,14 +38,20 @@ TABLES="$(./scripts/db-query.sh --prod "select table_name from information_schem
 for table in $TABLES; do
   printf '%-24s' "$table"
   ./scripts/db-query.sh --prod "select coalesce(json_agg(t), '[]'::json) as rows from public.${table} t;" \
-    > "$DEST/${table}.json"
+    > "$WORK/${table}.json"
   python3 -c "
 import json, sys
-rows = json.load(open('$DEST/${table}.json'))[0]['rows']
-json.dump(rows, open('$DEST/${table}.json', 'w'), indent=2, default=str)
+rows = json.load(open('$WORK/${table}.json'))[0]['rows']
+json.dump(rows, open('$WORK/${table}.json', 'w'), indent=2, default=str)
 print(len(rows), 'rows')
 "
 done
+
+# Every table is written, so this is a real snapshot now. Clear the trap first
+# or the rename target is deleted on the way out.
+trap - EXIT
+rm -rf "$DEST"
+mv "$WORK" "$DEST"
 
 echo
 echo "Snapshot written to $DEST"
