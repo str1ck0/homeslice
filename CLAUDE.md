@@ -60,6 +60,13 @@ Nothing configures these — pass `-p` at run time or two agents fight over 3000
   Node and Chrome disagree, and the same value rendered on the server and in
   the browser becomes a hydration mismatch. Use `src/core/money.ts` and
   `src/core/time.ts`, which assemble the strings by hand.
+- **A relative time in a client component needs the server's `now` passed in.**
+  "2 hours ago" is computed at render and again at hydration; a row that
+  crosses a boundary between the two mismatches. `ExpenseRow`, `SettlementRow`
+  and `LedgerList` all take a `now` for this.
+- **Client-side search must filter everything loaded, not everything shown.** A
+  list that truncates has to stop truncating while a query is active, or it
+  reports "no matches" about a row that is simply further down.
 - **RLS is a real security boundary**, not decoration — the browser holds an
   anon key and talks to Postgres directly. Run the integration suite after
   touching any policy.

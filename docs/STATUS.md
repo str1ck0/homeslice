@@ -132,11 +132,19 @@ right and the plan is stale:
 
 ## Done since 20 August
 
-**Search and filter** on the friend and group ledgers, and **restore a deleted
-expense or payment** — both shipped 31 August. Search matching lives in
-`src/core/search.ts` with tests: words match from their start (a substring
-search for "bo" matched "Lis**bo**n" and returned the whole trip) and accents
-fold both ways, so "pasteis" finds "Pastéis de Belém".
+**Search and filter** on all three lists — home, friend and group — and
+**restore a deleted expense or payment**. Both shipped 31 August.
+
+Matching lives in `src/core/search.ts` with tests, because it turned out to
+have rules rather than being an `.includes()` call: words match from their
+start (a substring search for "bo" matched "Lis**bo**n" and returned the whole
+trip) and accents fold both ways, so "pasteis" finds "Pastéis de Belém". On a
+trip through Portugal and Spain that second one is most of the descriptions.
+
+Filtering is client-side over rows the page already loaded — all three pages
+fetch everything anyway to compute balances. `LedgerList` is the one component;
+the honest limit is written next to it, and the shape of the fix if it is ever
+hit is a `.textSearch()` in the service rather than a rewrite.
 
 Production is also **backed up daily** now, by a launchd agent — the Free plan
 includes no scheduled backups and no point-in-time recovery, so the JSON
@@ -204,10 +212,25 @@ The money tests assert exact strings for that reason; the older ones checked
 only that the output contained "234", which is how the drift went unnoticed.
 
 **Dates are assembled by hand too, for the same reason as money.**
-`src/core/time.ts` holds `MONTH_ABBR`, `formatDayMonth` and
-`formatRelativeTime`; nothing in a list calls `toLocaleDateString`. `ExpenseRow`
-did, and it was the last one — a server-rendered month name and a
-browser-rendered one need not agree.
+`src/core/time.ts` holds `MONTH_ABBR`, `formatDayMonth`, `formatLongDate`,
+`formatFullDate` and `formatRelativeTime`; nothing calls `toLocaleDateString`.
+`ExpenseRow` did, then the expense and settlement detail pages did — each one
+found later than the last, each sitting next to a hand-rolled formatter whose
+comment explained why not to.
+
+**A relative time inside a client component needs the server's clock passed
+in.** "2 hours ago" is computed once during the server render and again on
+hydration; if the row crosses a boundary in between — "59 min ago" then "an
+hour ago" — that is a hydration mismatch caused by nothing but time passing.
+`ExpenseRow` and `SettlementRow` take an optional `now`, and `LedgerList`
+threads one down from the page. Server components can leave it out. This is the
+same class of bug as `toLocaleString`, arrived at from a different direction,
+and it is the reason Recent could not simply be dropped into a client component.
+
+**A client-side search must cover everything loaded, not everything rendered.**
+Recent shows thirty rows and loads far more; searching only the visible thirty
+would have answered "nothing matches" about an expense two screens down, which
+is worse than having no search. `LedgerList` truncates only when unfiltered.
 
 **Recent is sorted by `expense_events` / `settlement_events`, not by
 `expense_date`.** `listRecentActivity` takes the newest event per row and
