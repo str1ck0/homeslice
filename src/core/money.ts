@@ -91,6 +91,16 @@ const CURRENCY_SYMBOLS: Record<string, string> = {
 }
 
 /**
+ * The symbol alone, for somewhere too narrow to spell out an amount — a filter
+ * chip, say. Falls back to the code, on the same reasoning as formatCents:
+ * "AED" is clearer than a glyph most people would not recognise.
+ */
+export function currencySymbol(currency: string): string {
+  const code = currency.toUpperCase()
+  return CURRENCY_SYMBOLS[code] ?? code
+}
+
+/**
  * Format integer cents for display, e.g. 123456 -> "R1,234.56".
  *
  * Assembled by hand rather than through `toLocaleString`, because the runtime's

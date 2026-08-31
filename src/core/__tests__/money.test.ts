@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   MoneyError,
   decimalPlaces,
+  currencySymbol,
   formatCents,
   isZero,
   parseAmountToCents,
@@ -148,5 +149,18 @@ describe('isZero', () => {
     expect(isZero(1, 1)).toBe(true)
     expect(isZero(-1, 1)).toBe(true)
     expect(isZero(2, 1)).toBe(false)
+  })
+})
+
+describe('currencySymbol', () => {
+  it('gives the symbol where there is one', () => {
+    expect(currencySymbol('ZAR')).toBe('R')
+    expect(currencySymbol('EUR')).toBe('€')
+    expect(currencySymbol('eur')).toBe('€')
+  })
+
+  it('falls back to the code rather than a glyph nobody reads', () => {
+    expect(currencySymbol('AED')).toBe('AED')
+    expect(currencySymbol('SEK')).toBe('SEK')
   })
 })

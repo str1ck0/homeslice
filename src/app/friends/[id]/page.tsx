@@ -5,15 +5,9 @@ import { listFriends } from '@/server/services/friends'
 import { listExpensesWithPerson } from '@/server/services/expenses'
 import { listSettlementsWithPerson } from '@/server/services/settlements'
 import { debtLinesWith, getOverview, totalWith } from '@/server/services/overview'
-import {
-  Avatar,
-  Card,
-  CurrencyTotals,
-  DebtBreakdown,
-  EmptyState,
-  ExpenseRow,
-  SettlementRow,
-} from '@/components/ui'
+import { Avatar, Card, CurrencyTotals, DebtBreakdown } from '@/components/ui'
+import LedgerList, { type LedgerEntry } from '@/components/LedgerList'
+import { searchable } from '@/core/search'
 import RemoveFriendButton from './RemoveFriendButton'
 
 export const dynamic = 'force-dynamic'
@@ -29,8 +23,8 @@ export default async function FriendPage({ params }: { params: Promise<{ id: str
 
   const [overview, expenses, settlements] = await Promise.all([
     getOverview(profile.id),
-    listExpensesWithPerson(profile.id, friend.profileId),
-    listSettlementsWithPerson(profile.id, friend.profileId),
+    listExpensesWithPerson(profile.id, friend.profileId, { includeDeleted: true }),
+    listSettlementsWithPerson(profile.id, friend.profileId, { includeDeleted: true }),
   ])
 
   // Group name for anything that came from one. This list mixes group and
@@ -42,11 +36,42 @@ export default async function FriendPage({ params }: { params: Promise<{ id: str
 
   // One ledger, not two. A payment and an expense both change what you owe, so
   // hiding one of them is how a balance ends up with no visible cause.
-  const entries = [
-    ...expenses.map((expense) => ({ kind: 'expense' as const, date: expense.expenseDate, expense })),
+  //
+  // The search haystack is assembled here rather than in the browser: it is the
+  // same string on every keystroke, so building it once on the server beats
+  // rebuilding it per character, and it keeps the matching rules in one place.
+  const entries: LedgerEntry[] = [
+    ...expenses.map((expense) => ({
+      kind: 'expense' as const,
+      id: expense.id,
+      date: expense.expenseDate,
+      groupName: groupNameFor(expense.groupId),
+      deleted: expense.deletedAt !== null,
+      currency: expense.currency,
+      categoryName: expense.categoryName,
+      search: searchable(
+        expense.description,
+        ...expense.paidByNames,
+        expense.categoryName,
+        groupNameFor(expense.groupId)
+      ),
+      expense,
+    })),
     ...settlements.map((settlement) => ({
       kind: 'settlement' as const,
+      id: settlement.id,
       date: settlement.settledOn,
+      groupName: groupNameFor(settlement.groupId),
+      deleted: settlement.deletedAt !== null,
+      currency: settlement.currency,
+      categoryName: null,
+      search: searchable(
+        'payment',
+        settlement.fromName,
+        settlement.toName,
+        settlement.method,
+        groupNameFor(settlement.groupId)
+      ),
       settlement,
     })),
   ].sort((a, b) => b.date.localeCompare(a.date))
@@ -99,35 +124,12 @@ export default async function FriendPage({ params }: { params: Promise<{ id: str
           </Link>
         </div>
 
-        {entries.length === 0 ? (
-          <Card>
-            <EmptyState
-              title="Nothing shared yet"
-              body={`Anything you split or settle with ${friend.displayName} shows up here — in a group or not.`}
-            />
-          </Card>
-        ) : (
-          <ul className="flex flex-col gap-2">
-            {entries.map((entry) =>
-              entry.kind === 'expense' ? (
-                <li key={`e-${entry.expense.id}`}>
-                  <ExpenseRow
-                    expense={entry.expense}
-                    groupName={groupNameFor(entry.expense.groupId)}
-                  />
-                </li>
-              ) : (
-                <li key={`s-${entry.settlement.id}`}>
-                  <SettlementRow
-                    settlement={entry.settlement}
-                    currentProfileId={profile.id}
-                    groupName={groupNameFor(entry.settlement.groupId)}
-                  />
-                </li>
-              )
-            )}
-          </ul>
-        )}
+        <LedgerList
+          entries={entries}
+          currentProfileId={profile.id}
+          emptyTitle="Nothing shared yet"
+          emptyBody={`Anything you split or settle with ${friend.displayName} shows up here — in a group or not.`}
+        />
       </section>
 
       <RemoveFriendButton profileId={friend.profileId} displayName={friend.displayName} />

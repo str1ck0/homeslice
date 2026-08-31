@@ -6,15 +6,9 @@ import { listFriends } from '@/server/services/friends'
 import { debtLinesInGroup, getOverview, sumLines } from '@/server/services/overview'
 import { listExpenses } from '@/server/services/expenses'
 import { listSettlements } from '@/server/services/settlements'
-import {
-  Avatar,
-  BalanceSummary,
-  Card,
-  DebtBreakdown,
-  EmptyState,
-  ExpenseRow,
-  SettlementRow,
-} from '@/components/ui'
+import { Avatar, BalanceSummary, Card, DebtBreakdown } from '@/components/ui'
+import LedgerList, { type LedgerEntry } from '@/components/LedgerList'
+import { searchable } from '@/core/search'
 import AvatarPicker from '@/components/AvatarPicker'
 import { setGroupAvatarAction } from '@/app/actions'
 import AddMemberButton from './AddMemberButton'
@@ -42,18 +36,37 @@ export default async function GroupPage({
   const [members, overview, expenses, settlements, friends, contents] = await Promise.all([
     getGroupMembers(id),
     getOverview(profile.id),
-    listExpenses(id, profile.id),
-    listSettlements(id),
+    listExpenses(id, profile.id, { includeDeleted: true }),
+    listSettlements(id, { includeDeleted: true }),
     listFriends(),
     getGroupContents(id),
   ])
 
-  // One ledger, not two — see the friend page for why.
-  const entries = [
-    ...expenses.map((expense) => ({ kind: 'expense' as const, date: expense.expenseDate, expense })),
+  // One ledger, not two — see the friend page for why, including why the
+  // search haystack is built here rather than in the browser. No groupName on
+  // these: every row on this page is in the same group, so saying so on each
+  // one would be noise.
+  const entries: LedgerEntry[] = [
+    ...expenses.map((expense) => ({
+      kind: 'expense' as const,
+      id: expense.id,
+      date: expense.expenseDate,
+      groupName: null,
+      deleted: expense.deletedAt !== null,
+      currency: expense.currency,
+      categoryName: expense.categoryName,
+      search: searchable(expense.description, ...expense.paidByNames, expense.categoryName),
+      expense,
+    })),
     ...settlements.map((settlement) => ({
       kind: 'settlement' as const,
+      id: settlement.id,
       date: settlement.settledOn,
+      groupName: null,
+      deleted: settlement.deletedAt !== null,
+      currency: settlement.currency,
+      categoryName: null,
+      search: searchable('payment', settlement.fromName, settlement.toName, settlement.method),
       settlement,
     })),
   ].sort((a, b) => b.date.localeCompare(a.date))
@@ -133,36 +146,20 @@ export default async function GroupPage({
             </Link>
           </div>
 
-          {entries.length === 0 ? (
-            <Card>
-              <EmptyState
-                title="No expenses yet"
-                body="Add the first one and everyone's balance updates straight away."
-                action={
-                  <Link
-                    href={`/expenses/new?group=${id}`}
-                    className="mt-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-white"
-                  >
-                    Add an expense
-                  </Link>
-                }
-              />
-            </Card>
-          ) : (
-            <ul className="flex flex-col gap-2">
-              {entries.map((entry) =>
-                entry.kind === 'expense' ? (
-                  <li key={`e-${entry.expense.id}`}>
-                    <ExpenseRow expense={entry.expense} />
-                  </li>
-                ) : (
-                  <li key={`s-${entry.settlement.id}`}>
-                    <SettlementRow settlement={entry.settlement} currentProfileId={profile.id} />
-                  </li>
-                )
-              )}
-            </ul>
-          )}
+          <LedgerList
+            entries={entries}
+            currentProfileId={profile.id}
+            emptyTitle="No expenses yet"
+            emptyBody="Add the first one and everyone's balance updates straight away."
+            emptyAction={
+              <Link
+                href={`/expenses/new?group=${id}`}
+                className="mt-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-white"
+              >
+                Add an expense
+              </Link>
+            }
+          />
         </section>
 
         <section>
