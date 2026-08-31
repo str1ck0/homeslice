@@ -429,13 +429,21 @@ const ACTIVITY_VERB: Record<RowActivity['action'], string> = {
  * Recent is sorted by when something was touched, not by the date on it, so a
  * backdated expense can sit at the top with an old date in its corner. Without
  * this line that looks like a sorting bug.
+ *
+ * `now` exists because of where this gets rendered. In a server component the
+ * default is fine — the string is built once and shipped. Inside a client
+ * component it is built twice, once on the server and again on hydration, and
+ * a row that crosses a boundary in between ("59 min ago" then "an hour ago")
+ * is a hydration mismatch caused by nothing but the clock moving. Passing the
+ * server's instant down makes both renders agree.
  */
-function ActivityNote({ activity }: { activity: RowActivity }) {
+function ActivityNote({ activity, now }: { activity: RowActivity; now?: string }) {
   const who = activity.actorIsYou ? 'you' : activity.actorName
   const verb = ACTIVITY_VERB[activity.action]
   return (
     <>
-      {who ? `${verb} by ${who}` : verb} &middot; {formatRelativeTime(activity.at)}
+      {who ? `${verb} by ${who}` : verb} &middot;{' '}
+      {formatRelativeTime(activity.at, now ? new Date(now) : undefined)}
     </>
   )
 }
@@ -467,6 +475,7 @@ export function ExpenseRow({
   expense,
   groupName,
   activity,
+  now,
   deleted = false,
 }: {
   expense: {
@@ -482,6 +491,8 @@ export function ExpenseRow({
   }
   groupName?: string | null
   activity?: RowActivity
+  /** The server's instant, when rendering inside a client component. */
+  now?: string
   deleted?: boolean
 }) {
   const yourNet = expense.yourPaidCents - expense.yourShareCents
@@ -513,7 +524,7 @@ export function ExpenseRow({
           <GroupNote groupName={groupName} />
         </>
       }
-      activity={activity && <ActivityNote activity={activity} />}
+      activity={activity && <ActivityNote activity={activity} now={now} />}
       rightLabel={
         deleted
           ? 'removed'
@@ -546,6 +557,7 @@ export function SettlementRow({
   currentProfileId,
   groupName,
   activity,
+  now,
   deleted = false,
 }: {
   settlement: {
@@ -562,6 +574,8 @@ export function SettlementRow({
   currentProfileId: string
   groupName?: string | null
   activity?: RowActivity
+  /** The server's instant, when rendering inside a client component. */
+  now?: string
   deleted?: boolean
 }) {
   const date = new Date(`${settlement.settledOn}T00:00:00`)
@@ -597,7 +611,7 @@ export function SettlementRow({
           <GroupNote groupName={groupName} />
         </>
       }
-      activity={activity && <ActivityNote activity={activity} />}
+      activity={activity && <ActivityNote activity={activity} now={now} />}
       rightLabel={
         deleted
           ? 'removed'

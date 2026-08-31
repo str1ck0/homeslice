@@ -19,11 +19,11 @@ import { matches } from '@/core/search'
  * the database, and the shape of the thing to write is a `.textSearch()` in
  * listExpensesWithPerson rather than a rewrite of this file.
  *
- * Note what is deliberately *not* rendered here: relative times. ExpenseRow
- * takes an `activity` prop that says "3 hours ago", and in a client component
- * that string would be computed once on the server and again on hydration,
- * against a clock that has moved. The dashboard renders those rows on the
- * server for exactly that reason; this list shows dates, which do not drift.
+ * Relative times ("3 hours ago") are rendered against a `now` handed down from
+ * the server rather than read from the browser's clock. Computed here they
+ * would be built once during the server render and again on hydration, and a
+ * row that crosses a boundary in between is a hydration mismatch caused by
+ * nothing but time passing.
  */
 
 export interface LedgerEntry {
@@ -37,6 +37,8 @@ export interface LedgerEntry {
   /** Haystack from `searchable()`, built on the server so it is not rebuilt per keystroke. */
   search: string
   categoryName: string | null
+  /** Who last touched this and when. Only the dashboard has it. */
+  activity?: React.ComponentProps<typeof ExpenseRow>['activity']
   expense?: React.ComponentProps<typeof ExpenseRow>['expense']
   settlement?: React.ComponentProps<typeof SettlementRow>['settlement']
 }
@@ -74,6 +76,8 @@ export default function LedgerList({
   emptyTitle,
   emptyBody,
   emptyAction,
+  now,
+  initialLimit,
 }: {
   entries: LedgerEntry[]
   currentProfileId: string
@@ -81,12 +85,22 @@ export default function LedgerList({
   emptyBody: string
   /** Rendered inside the empty state. Server components may pass JSX here. */
   emptyAction?: React.ReactNode
+  /** The server's instant, so relative times survive hydration. */
+  now?: string
+  /**
+   * How many to show before the reader asks for more. Searching always looks
+   * at everything: a search that quietly only covered the visible rows would
+   * report "no matches" about something that is right there, which is worse
+   * than no search at all.
+   */
+  initialLimit?: number
 }) {
   const [query, setQuery] = useState('')
   const [kind, setKind] = useState<Kind>('all')
   const [currency, setCurrency] = useState<string>('all')
   const [category, setCategory] = useState<string>('all')
   const [showDeleted, setShowDeleted] = useState(false)
+  const [showAll, setShowAll] = useState(false)
 
   // Only offer a filter that would actually divide this list. A currency chip
   // on a list with one currency, or a category dropdown on a list with none,
@@ -116,6 +130,12 @@ export default function LedgerList({
 
   const filtering =
     query !== '' || kind !== 'all' || currency !== 'all' || category !== 'all'
+
+  // Truncation applies only to an unfiltered list. Once you are looking for
+  // something, you are shown everything that matches.
+  const truncated = initialLimit !== undefined && !filtering && !showAll
+  const shown = truncated ? visible.slice(0, initialLimit) : visible
+  const hiddenByLimit = visible.length - shown.length
 
   function clearAll() {
     setQuery('')
@@ -232,28 +252,44 @@ export default function LedgerList({
           </p>
         </Card>
       ) : (
-        <ul className="flex flex-col gap-2">
-          {visible.map((entry) =>
-            entry.kind === 'expense' && entry.expense ? (
-              <li key={`e-${entry.id}`}>
-                <ExpenseRow
-                  expense={entry.expense}
-                  groupName={entry.groupName}
-                  deleted={entry.deleted}
-                />
-              </li>
-            ) : entry.settlement ? (
-              <li key={`s-${entry.id}`}>
-                <SettlementRow
-                  settlement={entry.settlement}
-                  currentProfileId={currentProfileId}
-                  groupName={entry.groupName}
-                  deleted={entry.deleted}
-                />
-              </li>
-            ) : null
+        <>
+          <ul className="flex flex-col gap-2">
+            {shown.map((entry) =>
+              entry.kind === 'expense' && entry.expense ? (
+                <li key={`e-${entry.id}`}>
+                  <ExpenseRow
+                    expense={entry.expense}
+                    groupName={entry.groupName}
+                    activity={entry.activity}
+                    now={now}
+                    deleted={entry.deleted}
+                  />
+                </li>
+              ) : entry.settlement ? (
+                <li key={`s-${entry.id}`}>
+                  <SettlementRow
+                    settlement={entry.settlement}
+                    currentProfileId={currentProfileId}
+                    groupName={entry.groupName}
+                    activity={entry.activity}
+                    now={now}
+                    deleted={entry.deleted}
+                  />
+                </li>
+              ) : null
+            )}
+          </ul>
+
+          {hiddenByLimit > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowAll(true)}
+              className="rounded-xl border border-edge py-3 text-sm font-semibold text-accent transition-colors hover:border-accent/50"
+            >
+              Show {hiddenByLimit} older
+            </button>
           )}
-        </ul>
+        </>
       )}
     </div>
   )
