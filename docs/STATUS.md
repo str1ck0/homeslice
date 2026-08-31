@@ -1,12 +1,12 @@
 # Homeslice — where things stand
 
-_Last updated: 20 August 2026._
+_Last updated: 31 August 2026._
 
 **Live:** https://homeslice-liam-stricklands-projects.vercel.app
 **Repo:** `master`, plus three agent worktrees at `../homeslice-worktrees/`.
 **Databases:** local Supabase stack for development; hosted project
 `zwnhbhymjaqjpuxfcbam` (eu-west-1) for production. See `docs/DATABASE.md`.
-**Tests:** 116 unit + 64 integration, all passing (integration now local, ~2s).
+**Tests:** 131 unit + 64 integration, all passing (integration local, ~2s).
 
 ---
 
@@ -130,21 +130,24 @@ right and the plan is stale:
   for the next expense; groups run in as many currencies as a trip does.
 - **shadcn/ui was not used**, so §2.6's component decision never happened.
 
+## Done since 20 August
+
+**Search and filter** on the friend and group ledgers, and **restore a deleted
+expense or payment** — both shipped 31 August. Search matching lives in
+`src/core/search.ts` with tests: words match from their start (a substring
+search for "bo" matched "Lis**bo**n" and returned the whole trip) and accents
+fold both ways, so "pasteis" finds "Pastéis de Belém".
+
+Production is also **backed up daily** now, by a launchd agent — the Free plan
+includes no scheduled backups and no point-in-time recovery, so the JSON
+snapshot really is the only copy.
+
 ## Next up
 
-1. **Search and filter** on expenses — the first thing that hurts once a group
-   has fifty of them.
-2. **Hide settled-up friends and groups** behind a "show N settled" toggle.
-3. **Restore a deleted expense.** Deletion is already soft and recorded, and
-   since 20 August a deleted expense is visible again — struck through, in
-   Recent activity, saying who removed it and when. What it still has nowhere
-   to go: `getExpense` filters `deleted_at is null`, so the row does not link
-   anywhere and there is no screen to restore from. Splitwise puts a Restore
-   button on exactly that struck-through card, and everything but the button
-   now exists.
+1. **Hide settled-up friends and groups** behind a "show N settled" toggle.
+2. **User-created categories** — the seeded ones exist, adding your own does not.
 
-Then, in rough order: **user-created categories** · the **debt-simplification
-toggle** · **multi-payer UI** · **comments on expenses** (hang them off
+Then, in rough order: the **debt-simplification toggle** · **multi-payer UI** · **comments on expenses** (hang them off
 `expense_events`) · **recurring expenses** (schema and date maths in
 `src/core/recurrence.ts` are done and tested; needs UI, a cron route, and RLS
 policies — the table has none) · **CI** · **house-admin layer** · **CSV export
