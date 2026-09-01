@@ -93,7 +93,7 @@ export default function AvatarPicker({
           <Avatar name={name} url={shown} size={size} />
           <span
             aria-hidden
-            className="absolute -bottom-0.5 -right-0.5 grid place-items-center rounded-full border-2 border-surface bg-accent text-white"
+            className="absolute -bottom-0.5 -right-0.5 grid place-items-center rounded-full border-2 border-surface bg-accent text-on-accent"
             style={{ width: size * 0.34, height: size * 0.34, fontSize: size * 0.18 }}
           >
             +

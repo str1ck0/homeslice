@@ -103,7 +103,7 @@ export default async function DashboardPage({
       action={
         <Link
           href="/expenses/new"
-          className="rounded-full bg-accent px-4 py-2.5 text-sm font-semibold text-white"
+          className="rounded-full bg-accent px-4 py-2.5 text-sm font-semibold text-on-accent"
         >
           Add expense
         </Link>
@@ -145,7 +145,7 @@ export default async function DashboardPage({
               <div className="mt-2 flex gap-2">
                 <Link
                   href="/friends"
-                  className="rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-white"
+                  className="rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-on-accent"
                 >
                   Add a friend
                 </Link>

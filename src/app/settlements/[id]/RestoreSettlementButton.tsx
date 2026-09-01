@@ -53,7 +53,7 @@ export default function RestoreSettlementButton({
       <button
         onClick={handleRestore}
         disabled={busy}
-        className="w-full rounded-xl bg-accent py-3 text-sm font-semibold text-white transition-opacity disabled:opacity-50"
+        className="w-full rounded-xl bg-accent py-3 text-sm font-semibold text-on-accent transition-opacity disabled:opacity-50"
       >
         {busy ? 'Restoring…' : 'Restore this payment'}
       </button>

@@ -40,7 +40,7 @@ export default function NewGroupPage() {
   }
 
   return (
-    <div className="mx-auto flex min-h-dvh max-w-lg flex-col px-5 py-8">
+    <div className="mx-auto flex min-h-app max-w-lg flex-col px-5 py-8">
       <Link href="/dashboard" className="mb-6 text-sm text-muted hover:text-ink">
         ← Back
       </Link>
@@ -51,7 +51,7 @@ export default function NewGroupPage() {
             key={option}
             onClick={() => setTab(option)}
             className={`flex-1 rounded-lg py-2.5 text-sm font-semibold transition-colors ${
-              tab === option ? 'bg-accent text-white' : 'text-muted hover:text-ink'
+              tab === option ? 'bg-accent text-on-accent' : 'text-muted hover:text-ink'
             }`}
           >
             {option === 'create' ? 'Create a group' : 'Join with a code'}
@@ -115,7 +115,7 @@ export default function NewGroupPage() {
           <button
             type="submit"
             disabled={busy}
-            className="mt-2 rounded-xl bg-accent px-4 py-3.5 font-semibold text-white transition-opacity disabled:opacity-50"
+            className="mt-2 rounded-xl bg-accent px-4 py-3.5 font-semibold text-on-accent transition-opacity disabled:opacity-50"
           >
             {busy ? 'Creating…' : 'Create group'}
           </button>
@@ -135,7 +135,7 @@ export default function NewGroupPage() {
           <button
             type="submit"
             disabled={busy}
-            className="mt-2 rounded-xl bg-accent px-4 py-3.5 font-semibold text-white transition-opacity disabled:opacity-50"
+            className="mt-2 rounded-xl bg-accent px-4 py-3.5 font-semibold text-on-accent transition-opacity disabled:opacity-50"
           >
             {busy ? 'Joining…' : 'Join group'}
           </button>

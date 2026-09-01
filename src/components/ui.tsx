@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { AccountIcon, FriendIcon, GroupIcon, HomeIcon } from '@/components/icons'
 import { formatCents } from '@/core/money'
 import { MONTH_ABBR, formatRelativeTime } from '@/core/time'
 
@@ -96,33 +97,55 @@ export function EmptyState({
   )
 }
 
-/** Bottom navigation. Thumb-reachable, and the shape a native shell expects. */
+/**
+ * Bottom navigation. Thumb-reachable, and the shape a native shell expects.
+ *
+ * The bar sits on top of the iOS home indicator once installed, so it pads
+ * itself by the safe-area inset rather than leaving the labels under the
+ * indicator — which is what a 12px pad and a zero inset used to give us. The
+ * inset only reports a real number under viewport-fit=cover (set in the root
+ * layout); the max() keeps a sane gap on everything else.
+ */
 export function BottomNav({ active }: { active: NavKey }) {
   const items = [
-    { key: 'home', href: '/dashboard', label: 'Home' },
-    { key: 'friends', href: '/friends', label: 'Friends' },
-    { key: 'groups', href: '/groups', label: 'Groups' },
-    { key: 'account', href: '/account', label: 'Account' },
+    { key: 'home', href: '/dashboard', label: 'Home', Icon: HomeIcon },
+    { key: 'friends', href: '/friends', label: 'Friends', Icon: FriendIcon },
+    { key: 'groups', href: '/groups', label: 'Groups', Icon: GroupIcon },
+    { key: 'account', href: '/account', label: 'Account', Icon: AccountIcon },
   ] as const
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-edge bg-raised/95 backdrop-blur">
+    <nav
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-edge bg-raised/95 backdrop-blur"
+      style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 0.625rem)' }}
+    >
       <ul className="mx-auto flex max-w-lg">
-        {items.map((item) => (
-          <li key={item.key} className="flex-1">
-            <Link
-              href={item.href}
-              aria-current={active === item.key ? 'page' : undefined}
-              className={`flex flex-col items-center gap-1 py-3 text-xs font-medium transition-colors ${
-                active === item.key ? 'text-accent' : 'text-muted hover:text-ink'
-              }`}
-            >
-              {item.label}
-            </Link>
-          </li>
-        ))}
+        {items.map(({ key, href, label, Icon }) => {
+          const current = active === key
+          return (
+            <li key={key} className="flex-1">
+              <Link
+                href={href}
+                aria-current={current ? 'page' : undefined}
+                className={`relative flex h-16 flex-col items-center justify-center gap-1.5 transition-colors ${
+                  current ? 'text-accent' : 'text-muted hover:text-ink'
+                }`}
+              >
+                {/* Which tab you are on, said twice: colour, and a mark that
+                    survives being colour-blind. */}
+                <span
+                  aria-hidden
+                  className={`absolute inset-x-6 top-0 h-0.5 rounded-full ${
+                    current ? 'bg-accent' : 'bg-transparent'
+                  }`}
+                />
+                <Icon className="h-6 w-6" />
+                <span className="text-[11px] font-medium leading-none">{label}</span>
+              </Link>
+            </li>
+          )
+        })}
       </ul>
-      <div style={{ height: 'env(safe-area-inset-bottom)' }} />
     </nav>
   )
 }
@@ -141,7 +164,11 @@ export function PageShell({
   nav?: NavKey
 }) {
   return (
-    <div className="mx-auto flex min-h-dvh max-w-lg flex-col pb-24">
+    <div
+      className="mx-auto flex min-h-app max-w-lg flex-col"
+      // Clears the nav: its 64px of tabs, its safe-area pad, and air.
+      style={{ paddingBottom: nav ? 'calc(6rem + env(safe-area-inset-bottom))' : '2rem' }}
+    >
       <header className="flex items-start justify-between gap-4 px-5 pb-4 pt-8">
         <div className="min-w-0">
           <h1 className="text-2xl font-bold tracking-tight text-balance">{title}</h1>

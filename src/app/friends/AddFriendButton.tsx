@@ -55,8 +55,8 @@ export default function AddFriendButton({ compact = false }: { compact?: boolean
         onClick={() => setOpen(true)}
         className={
           compact
-            ? 'rounded-full bg-accent px-4 py-2.5 text-sm font-semibold text-white'
-            : 'mt-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-white'
+            ? 'rounded-full bg-accent px-4 py-2.5 text-sm font-semibold text-on-accent'
+            : 'mt-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-on-accent'
         }
       >
         Add friend
@@ -108,7 +108,7 @@ export default function AddFriendButton({ compact = false }: { compact?: boolean
           <button
             type="submit"
             disabled={busy || name.trim().length < 2}
-            className="w-full rounded-xl bg-accent px-4 py-3.5 font-semibold text-white transition-opacity disabled:opacity-50"
+            className="w-full rounded-xl bg-accent px-4 py-3.5 font-semibold text-on-accent transition-opacity disabled:opacity-50"
           >
             {busy ? 'Adding…' : 'Add friend'}
           </button>

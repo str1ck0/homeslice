@@ -52,7 +52,7 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <div className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center px-6 py-12">
+    <div className="mx-auto flex min-h-app max-w-sm flex-col justify-center px-6 py-12">
       <h1 className="text-2xl font-bold tracking-tight">Choose a new password</h1>
 
       {!ready ? (
@@ -96,7 +96,7 @@ export default function ResetPasswordPage() {
           <button
             type="submit"
             disabled={busy}
-            className="mt-2 rounded-xl bg-accent px-4 py-3.5 font-semibold text-white transition-opacity disabled:opacity-50"
+            className="mt-2 rounded-xl bg-accent px-4 py-3.5 font-semibold text-on-accent transition-opacity disabled:opacity-50"
           >
             {busy ? 'Saving…' : 'Save password'}
           </button>

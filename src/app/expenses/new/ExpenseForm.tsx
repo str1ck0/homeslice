@@ -266,7 +266,9 @@ export default function ExpenseForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="mx-auto flex min-h-dvh max-w-lg flex-col gap-5 px-5 py-8 pb-32"
+      className="mx-auto flex min-h-app max-w-lg flex-col gap-5 px-5 py-8"
+      // Clears the fixed save bar at the bottom.
+      style={{ paddingBottom: 'calc(7.5rem + env(safe-area-inset-bottom))' }}
     >
       <div className="flex items-center justify-between">
         <Link
@@ -407,7 +409,7 @@ export default function ExpenseForm({
           </p>
           <Link
             href={groupId ? `/groups/${groupId}` : '/friends'}
-            className="mt-3 inline-block rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-white"
+            className="mt-3 inline-block rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-on-accent"
           >
             {groupId ? 'Add someone to the group' : 'Add a friend'}
           </Link>
@@ -467,17 +469,19 @@ export default function ExpenseForm({
         </p>
       )}
 
-      <div className="fixed inset-x-0 bottom-0 border-t border-edge bg-raised/95 p-4 backdrop-blur">
+      <div
+        className="fixed inset-x-0 bottom-0 border-t border-edge bg-raised/95 p-4 backdrop-blur"
+        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 1rem)' }}
+      >
         <div className="mx-auto max-w-lg">
           <button
             type="submit"
             disabled={busy || Boolean(preview?.error) || participants.length === 0}
-            className="w-full rounded-xl bg-accent px-4 py-3.5 font-semibold text-white transition-opacity disabled:opacity-50"
+            className="w-full rounded-xl bg-accent px-4 py-3.5 font-semibold text-on-accent transition-opacity disabled:opacity-50"
           >
             {busy ? (uploadStatus ?? 'Saving…') : editing ? 'Save changes' : 'Save expense'}
           </button>
         </div>
-        <div style={{ height: 'env(safe-area-inset-bottom)' }} />
       </div>
     </form>
   )

@@ -81,7 +81,7 @@ export default async function FriendPage({ params }: { params: Promise<{ id: str
   const owed = [...totals.values()].some((cents) => cents > 0)
 
   return (
-    <div className="mx-auto flex min-h-dvh max-w-lg flex-col gap-5 px-5 py-8 pb-16">
+    <div className="mx-auto flex min-h-app max-w-lg flex-col gap-5 px-5 py-8 pb-16">
       <Link href="/friends" className="text-sm text-muted hover:text-ink">
         ← Friends
       </Link>

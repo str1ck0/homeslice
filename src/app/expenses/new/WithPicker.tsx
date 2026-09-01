@@ -147,7 +147,7 @@ export default function WithPicker({
                         aria-hidden
                         className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border text-sm ${
                           picked
-                            ? 'border-accent bg-accent text-white'
+                            ? 'border-accent bg-accent text-on-accent'
                             : 'border-edge text-transparent'
                         }`}
                       >
@@ -170,7 +170,7 @@ export default function WithPicker({
           type="button"
           onClick={() => onApply({ groupId: null, withIds: chosen })}
           disabled={chosen.length === 0}
-          className="w-full rounded-xl bg-accent px-4 py-3.5 font-semibold text-white transition-opacity disabled:opacity-50"
+          className="w-full rounded-xl bg-accent px-4 py-3.5 font-semibold text-on-accent transition-opacity disabled:opacity-50"
         >
           {chosen.length === 0
             ? 'Choose who to split with'

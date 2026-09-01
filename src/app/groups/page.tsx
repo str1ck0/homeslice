@@ -40,7 +40,7 @@ export default async function GroupsPage({
       action={
         <Link
           href="/groups/new"
-          className="rounded-full bg-accent px-4 py-2.5 text-sm font-semibold text-white"
+          className="rounded-full bg-accent px-4 py-2.5 text-sm font-semibold text-on-accent"
         >
           New
         </Link>
@@ -65,7 +65,7 @@ export default async function GroupsPage({
             action={
               <Link
                 href="/groups/new"
-                className="mt-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-white"
+                className="mt-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-on-accent"
               >
                 Create a group
               </Link>
