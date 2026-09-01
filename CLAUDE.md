@@ -32,9 +32,9 @@ questions have a supported path:
 ./scripts/db-query.sh --prod "select count(*) from expenses;"
 ```
 
-Worktrees isolate code, never data. All four checkouts share the one local
-stack, so `supabase db reset` and `npm run test:integration` still want one
-agent at a time — but against a database that exists to be thrown away.
+Worktrees isolate code, never data — all four checkouts share the one local
+stack. That is a database which exists to be thrown away, so the care needed is
+coordination rather than caution: see **Sharing the machine with other agents**.
 
 ## Working here
 
@@ -49,8 +49,54 @@ A green typecheck has repeatedly meant nothing in this repo. Run the
 integration suite, and open the app in a browser, before saying something
 works.
 
-Ports: main checkout 3000, `agent-1` 3001, `agent-2` 3002, `agent-3` 3003.
-Nothing configures these — pass `-p` at run time or two agents fight over 3000.
+## Sharing the machine with other agents
+
+Several agents work here at once, in `../homeslice-worktrees/`. The worktrees
+isolate code and nothing else: one Docker daemon, one Supabase stack, one set of
+ports, one machine.
+
+**Pass `-p` every time, and check which port you actually got.**
+
+| checkout | port |
+|---|---|
+| main | 3000 |
+| `agent-1` | 3001 |
+| `agent-2` | 3002 |
+| `agent-3` | 3003 |
+
+Nothing configures these. The failure is quiet rather than loud — Next.js does
+not stop when a port is taken, it moves over and mentions it once:
+
+```
+⚠ Port 3000 is in use by process 5609, using available port 3001 instead.
+```
+
+Miss that line and you spend an afternoon browser-testing another agent's
+checkout while believing it is yours. It has happened. Read the port back out of
+the startup output before you trust anything you see in a browser.
+
+**Docker has to be running before Supabase is.** If OrbStack is not up,
+`supabase status` fails at a layer below Supabase and says so in its own terms:
+
+```
+failed to connect to the docker API at unix:///Users/…/docker.sock
+```
+
+That is "the daemon is not running", not "the stack is broken". `open -a
+OrbStack`, wait for it, then `supabase start` from the main checkout.
+
+**"The stack is down" is true for about a minute.** Another agent may have
+started it since you looked, and `supabase start` is run once per boot, so the
+agent who needs it is often not the agent who starts it. Re-run `supabase
+status` before you conclude anything, and certainly before you build around it —
+an agent recently wrote a throwaway route to render components without signing
+in, against a stack that had been up and healthy for twenty minutes. If it is
+genuinely down, start it or say so. Do not route around it silently.
+
+**One agent at a time for `supabase db reset` and `npm run test:integration`.**
+Both write to the shared local database. A reset in one worktree wipes the data
+another agent is halfway through verifying against, and the seed comes back
+without the state they were looking at. Say you are about to, or ask.
 
 ## Things that will bite you
 
