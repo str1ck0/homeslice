@@ -1,7 +1,7 @@
 {
   "name": "Homeslice",
   "short_name": "Homeslice",
-  "description": "Split costs and run your house, without the paywall.",
+  "description": "Split costs and settle up, without the arithmetic.",
   "start_url": "/dashboard",
   "display": "standalone",
   "orientation": "portrait",

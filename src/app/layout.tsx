@@ -3,7 +3,7 @@ import './globals.css'
 
 export const metadata: Metadata = {
   title: 'Homeslice',
-  description: 'Split costs and run your house, without the paywall.',
+  description: 'Split costs and settle up, without the arithmetic.',
   manifest: '/manifest.webmanifest',
   // iOS ignores the manifest's icons and looks for apple-touch-icon.
   icons: {

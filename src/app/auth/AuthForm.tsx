@@ -110,7 +110,7 @@ export default function AuthForm() {
         <p className="text-sm font-semibold uppercase tracking-widest text-accent">Homeslice</p>
         <h1 className="mt-2 text-3xl font-bold tracking-tight text-balance">{copy.title}</h1>
         <p className="mt-2 text-sm text-muted">
-          Split costs and run your house. Free, for good.
+          Split costs and settle up, without the arithmetic.
         </p>
       </div>
 

@@ -73,7 +73,7 @@ export default function NewGroupPage() {
               name="name"
               required
               maxLength={80}
-              placeholder="20 Van Breda Street"
+              placeholder="Lisbon 2026"
               className="h-14 rounded-xl border border-edge bg-raised px-4 text-base outline-none focus:border-accent"
             />
           </label>
