@@ -1,12 +1,12 @@
 # Homeslice — where things stand
 
-_Last updated: 31 August 2026._
+_Last updated: 1 September 2026._
 
 **Live:** https://homeslice-liam-stricklands-projects.vercel.app
 **Repo:** `master`, plus three agent worktrees at `../homeslice-worktrees/`.
 **Databases:** local Supabase stack for development; hosted project
 `zwnhbhymjaqjpuxfcbam` (eu-west-1) for production. See `docs/DATABASE.md`.
-**Tests:** 131 unit + 64 integration, all passing (integration local, ~2s).
+**Tests:** 159 unit + 65 integration, all passing (integration local, ~2s).
 
 ---
 
@@ -103,32 +103,74 @@ split types, multiple photos, per-currency balances, settle-up, mobile-first
 PWA, and the unit suite over `src/core`. This is past the "I can cancel
 Splitwise" bar and has been used by real people for two days.
 
-Three M1 items remain unbuilt: **user-created categories** (the seeded ones
-exist, adding your own does not), the **debt-simplification toggle**
-(`groups.simplify_debts` is read at settle-up but nothing writes it), and the
-**multi-payer UI** (the service handles several payers; the form offers one and
-refuses to *edit* a multi-payer expense rather than flatten it silently).
+Two M1 items remain unbuilt: **user-created categories** (the seeded ones
+exist, adding your own does not) and the **debt-simplification toggle**
+(`groups.simplify_debts` is read at settle-up but nothing writes it). The
+**multi-payer UI** shipped on 1 September — see below.
 
 **M2 — Daily driver: started sideways.** The plan's activity feed was cut, then
 partly arrived anyway as the per-expense record and the Recent activity list on
-the dashboard, which is as much feed as this app seems to want. Search and filter,
-recurring expenses, CSV export and charts are untouched. Comments on expenses
+the dashboard, which is as much feed as this app seems to want. Search and
+filter shipped on 31 August, along with restoring a deleted expense or payment.
+Recurring expenses, CSV export and charts are untouched. Comments on expenses
 are untouched, though `expense_events` is now the obvious place to hang them.
 
-**M3 (house-admin), M4 (PWA hardening) and M5 (App Store): untouched.**
+**M3 (house-admin) and M4 (PWA hardening): untouched, and now deferred behind
+M5.**
 
-### Where the plan is now wrong
+**M5 (App Store): the current priority.** See Next up.
 
-Read §3.1 and §8 of the implementation plan with these in mind — the code is
-right and the plan is stale:
+### The plan was rewritten on 1 September
 
-- **Placeholder people are gone** (12 August). The plan calls them essential;
-  in practice the email-matching that made them claimable was optional at the
-  point of creation, so the promise did not hold. Everyone has an account now.
-- **Usernames are gone** (12 August). One unique display name does both jobs.
-- **A group has no meaningful currency.** The column survives as a suggestion
-  for the next expense; groups run in as many currencies as a trip does.
-- **shadcn/ui was not used**, so §2.6's component decision never happened.
+It used to be stale in four places and this section listed them. They are now
+marked **REVERSED** in the plan itself, in the sections they belong to —
+placeholder people and usernames (§3.1), a group's currency (§3.2), and
+shadcn/ui (§2.6) — so there is no longer a list of corrections to carry in your
+head while reading it.
+
+Two things the rewrite turned up that were not previously written down anywhere:
+
+- **§2.3 was only half built.** The service layer is real and every Server
+  Action is a thin wrapper over it, but the Route Handler adapter was never
+  written: `src/app/api/` holds one route, and it serves signed URLs for receipt
+  images. No mutation is reachable over HTTP. The separation was the expensive
+  part and it held, so this is now a task rather than a rewrite — but it is on
+  the critical path for a native client.
+- **`recurrence_rules` has no RLS policies at all.** Nothing reads or writes the
+  table yet, so nothing is exposed today. It has to be fixed before anything
+  does.
+
+## Done on 1 September
+
+**The multi-payer UI.** The service always handled several payers; the form
+offered one, and rather than flatten a multi-payer expense down to its first
+payer on save — quietly changing what everyone owed — it refused to edit one at
+all. "Who paid?" in More options now has a **More than one paid** toggle: tick
+whoever put money in, type what each of them put, and a running line underneath
+says what is still unaccounted for or how far over the payments have gone. One
+payer stays a dropdown and is never asked for an amount, because a sole payer
+paid the total by definition.
+
+The parsing and the adding-up live in `src/core/payers.ts` with tests, for the
+same reason the split maths does: it decides what goes into
+`expense_participants.paid_cents`, so it is money logic.
+
+**Anyone in an expense can edit it — the edit page now agrees.** The detail page
+had offered Edit to any participant since 13 August, and the RLS policy has
+allowed it since then too, but `expenses/[id]/edit` still checked authorship
+alone. A participant who was not the creator got an Edit button that bounced
+them straight back to the expense. The page now applies the same
+participant-or-creator rule the policy does, and that `settlements/[id]/edit`
+already applied to a payment.
+
+**The record now describes a change to what each payer put in.** Found while
+testing the above: `describeChanges` compared only the *set* of payers, so
+moving €80/€40 to €70/€50 between the same two people changed every balance on
+the expense and appended nothing to the history. Until the form could edit a
+multi-payer expense that change could not be made through the UI at all — so
+enabling the UI is what made the gap reachable. `describeChanges` is now
+exported and unit-tested, because an edit it fails to describe is an edit that
+vanishes.
 
 ## Done since 20 August
 
@@ -152,14 +194,46 @@ snapshot really is the only copy.
 
 ## Next up
 
-1. **Hide settled-up friends and groups** behind a "show N settled" toggle.
-2. **User-created categories** — the seeded ones exist, adding your own does not.
+**The priority changed on 1 September: the App Store comes before the remaining
+feature work.** The plan was rewritten around it — §7 has the detail and §5 has
+the sequence. The short version of why: four people already have this as a PWA,
+so the house-admin layer and PWA hardening are features for people who already
+have it, while the App Store is what puts it in front of anyone else. Its long
+pole is not code.
 
-Then, in rough order: the **debt-simplification toggle** · **multi-payer UI** · **comments on expenses** (hang them off
-`expense_events`) · **recurring expenses** (schema and date maths in
-`src/core/recurrence.ts` are done and tested; needs UI, a cron route, and RLS
-policies — the table has none) · **CI** · **house-admin layer** · **CSV export
-and charts** · **App Store** via Capacitor, see §7 of the plan.
+1. **Enrol in the Apple Developer Program.** $99/year, and identity
+   verification takes days. It is mostly waiting, so start the clock first.
+2. **In-app account deletion.** An App Store requirement (Guideline 5.1.1(v))
+   and the one with a real design question in it — see below.
+3. **A privacy policy**, as a route in the app so the URL is stable.
+4. **Route Handlers over the services**, so a native client can call the same
+   server logic. §2.3 of the plan asked for this and only half of it was built.
+5. **Native push, camera, haptics, share sheet**, then the Capacitor shell,
+   TestFlight and submission.
+
+**Account deletion is not a delete.** History here is append-only, shared, and
+other people's balances are computed from it: if a profile vanishes, every
+expense it was part of loses a participant, the `SUM(paid) = SUM(owed) = amount`
+invariant breaks on those rows, and three other people's balances silently
+change to numbers that were never true. Apple wants the account gone, not the
+ledger falsified. The shape that satisfies both is the one leaving a group
+already uses — sever the login, tombstone the person, keep the rows.
+`profiles.auth_user_id` is already nullable and already decoupled from
+`auth.users`; the decoupling that lost its purpose when placeholder people were
+removed is exactly what this needs. The unsettled-balance guard applies too: you
+cannot walk away from money that is owed.
+
+Worth doing before submitting rather than after: **Playwright** over the
+critical journeys and **CI**. Review is days per round trip, so a typo caught by
+a reviewer costs a week.
+
+Deferred behind all of that, in rough order: **hide settled-up friends and
+groups** behind a "show N settled" toggle · **user-created categories** ·
+**debt-simplification toggle** · **multi-payer UI** · **comments on expenses**
+(hang them off `expense_events`) · **recurring expenses** (schema and date maths
+in `src/core/recurrence.ts` are done and tested; needs UI, a cron route, and RLS
+policies — the table has none) · **house-admin layer** · **CSV export and
+charts**.
 
 ---
 
