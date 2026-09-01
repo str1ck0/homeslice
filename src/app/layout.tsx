@@ -18,19 +18,22 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#fafaf9' },
-    { media: '(prefers-color-scheme: dark)', color: '#0c0e0d' },
+    { media: '(prefers-color-scheme: light)', color: '#faf9f7' },
+    { media: '(prefers-color-scheme: dark)', color: '#0f0e0d' },
   ],
   width: 'device-width',
   initialScale: 1,
   // Stops iOS zooming the page when a form field is focused.
   maximumScale: 1,
+  // Without this the safe-area insets all read 0, and installed on a phone the
+  // tab bar ends up underneath the home indicator.
+  viewportFit: 'cover',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="min-h-dvh antialiased">{children}</body>
+      <body className="min-h-app antialiased">{children}</body>
     </html>
   )
 }

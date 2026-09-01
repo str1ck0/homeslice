@@ -47,7 +47,7 @@ export default async function SettlementPage({ params }: { params: Promise<{ id:
   const canEdit = youPaid || youWerePaid || settlement.createdBy === profile.id
 
   return (
-    <div className="mx-auto flex min-h-dvh max-w-lg flex-col gap-5 px-5 py-8 pb-16">
+    <div className="mx-auto flex min-h-app max-w-lg flex-col gap-5 px-5 py-8 pb-16">
       <Link href={backHref} className="text-sm text-muted hover:text-ink">
         ← Back
       </Link>

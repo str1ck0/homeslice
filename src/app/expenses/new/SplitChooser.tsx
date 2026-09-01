@@ -577,7 +577,7 @@ export default function SplitChooser({
             setOpen(false)
             setAdvanced(false)
           }}
-          className="w-full rounded-xl bg-accent px-4 py-3.5 font-semibold text-white transition-opacity"
+          className="w-full rounded-xl bg-accent px-4 py-3.5 font-semibold text-on-accent transition-opacity"
         >
           Done
         </button>

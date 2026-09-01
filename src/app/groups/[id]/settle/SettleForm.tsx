@@ -140,7 +140,7 @@ export default function SettleForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="mx-auto flex min-h-dvh w-full max-w-lg flex-col gap-5 px-5 py-8"
+      className="mx-auto flex min-h-app w-full max-w-lg flex-col gap-5 px-5 py-8"
     >
       <div className="flex items-center gap-3">
         <Link href={cancelHref} className="shrink-0 text-sm text-muted hover:text-ink">
@@ -300,7 +300,7 @@ export default function SettleForm({
       <button
         type="submit"
         disabled={busy || fromProfileId === toProfileId}
-        className="mt-2 rounded-xl bg-accent px-4 py-3.5 font-semibold text-white transition-opacity disabled:opacity-50"
+        className="mt-2 rounded-xl bg-accent px-4 py-3.5 font-semibold text-on-accent transition-opacity disabled:opacity-50"
       >
         {busy
           ? existing

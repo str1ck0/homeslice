@@ -105,7 +105,7 @@ export default function AuthForm() {
   }[mode]
 
   return (
-    <div className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center px-6 py-12">
+    <div className="mx-auto flex min-h-app max-w-sm flex-col justify-center px-6 py-12">
       <div className="mb-8">
         <p className="text-sm font-semibold uppercase tracking-widest text-accent">Homeslice</p>
         <h1 className="mt-2 text-3xl font-bold tracking-tight text-balance">{copy.title}</h1>
@@ -168,7 +168,7 @@ export default function AuthForm() {
         <button
           type="submit"
           disabled={busy}
-          className="mt-2 flex items-center justify-center gap-2 rounded-xl bg-accent px-4 py-3.5 font-semibold text-white transition-opacity disabled:opacity-50"
+          className="mt-2 flex items-center justify-center gap-2 rounded-xl bg-accent px-4 py-3.5 font-semibold text-on-accent transition-opacity disabled:opacity-50"
         >
           {busy && <Spinner />}
           {succeeded ? 'Signed in' : busy ? 'Just a moment…' : copy.cta}

@@ -68,7 +68,7 @@ export default function RemoveFriendButton({
         <button
           onClick={handleRemove}
           disabled={busy}
-          className="flex-1 rounded-xl bg-negative px-4 py-3 font-semibold text-white disabled:opacity-50"
+          className="flex-1 rounded-xl bg-negative px-4 py-3 font-semibold text-on-negative disabled:opacity-50"
         >
           {busy ? 'Removing…' : 'Remove'}
         </button>

@@ -104,7 +104,7 @@ export default function DeleteGroupButton({
         <button
           onClick={handleDelete}
           disabled={!canDelete || busy}
-          className="flex-1 rounded-xl bg-negative px-4 py-3 font-semibold text-white transition-opacity disabled:opacity-40"
+          className="flex-1 rounded-xl bg-negative px-4 py-3 font-semibold text-on-negative transition-opacity disabled:opacity-40"
         >
           {busy ? 'Deleting…' : 'Delete for everyone'}
         </button>

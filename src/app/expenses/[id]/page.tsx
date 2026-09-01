@@ -49,7 +49,7 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
   const canEdit = expense.createdBy === profile.id || Boolean(yours)
 
   return (
-    <div className="mx-auto flex min-h-dvh max-w-lg flex-col gap-5 px-5 py-8 pb-16">
+    <div className="mx-auto flex min-h-app max-w-lg flex-col gap-5 px-5 py-8 pb-16">
       <Link href={backHref} className="text-sm text-muted hover:text-ink">
         ← Back
       </Link>

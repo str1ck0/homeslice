@@ -7,7 +7,7 @@ export default function AuthPage() {
     // the query string is resolved on the client.
     <Suspense
       fallback={
-        <div className="mx-auto flex min-h-dvh max-w-sm items-center justify-center px-6">
+        <div className="mx-auto flex min-h-app max-w-sm items-center justify-center px-6">
           <p className="text-sm text-muted">Loading…</p>
         </div>
       }

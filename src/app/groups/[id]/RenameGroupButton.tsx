@@ -109,7 +109,7 @@ export default function RenameGroupButton({
         <button
           type="submit"
           disabled={busy}
-          className="flex-1 rounded-xl bg-accent px-4 py-3 font-semibold text-white disabled:opacity-50"
+          className="flex-1 rounded-xl bg-accent px-4 py-3 font-semibold text-on-accent disabled:opacity-50"
         >
           {busy ? 'Saving…' : 'Save'}
         </button>

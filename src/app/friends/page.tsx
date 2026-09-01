@@ -99,7 +99,7 @@ export default async function FriendsPage({
       {friends.length > 0 && (
         <Link
           href="/expenses/new"
-          className="mt-4 block rounded-xl bg-accent px-4 py-3.5 text-center font-semibold text-white"
+          className="mt-4 block rounded-xl bg-accent px-4 py-3.5 text-center font-semibold text-on-accent"
         >
           Add expense
         </Link>

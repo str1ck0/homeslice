@@ -89,7 +89,7 @@ export default async function GroupPage({
   const totals = sumLines(lines)
 
   return (
-    <div className="mx-auto flex min-h-dvh max-w-lg flex-col pb-28">
+    <div className="mx-auto flex min-h-app max-w-lg flex-col pb-28">
       <header className="px-5 pb-4 pt-8">
         <Link href="/dashboard" className="text-sm text-muted hover:text-ink">
           ← Groups
@@ -154,7 +154,7 @@ export default async function GroupPage({
             emptyAction={
               <Link
                 href={`/expenses/new?group=${id}`}
-                className="mt-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-white"
+                className="mt-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-on-accent"
               >
                 Add an expense
               </Link>
