@@ -105,16 +105,77 @@ describeIntegration('group membership and deletion', () => {
     if (error) throw error
   }, 60_000)
 
+  /**
+   * Put the database back.
+   *
+   * This used to walk one user at a time deleting their expenses, then their
+   * friendships, then the profile — and never checked whether any of it
+   * worked. It did not: settlements reference profiles with NO ACTION and were
+   * never deleted at all, so every passing run left an owner and a friend
+   * behind. Twenty-two of them had accumulated in the shared local database by
+   * 1 September. The stranger always went, because the stranger never settles
+   * up with anybody.
+   *
+   * Two things make the difference. Everything that references profiles
+   * without a cascade goes first, and it goes for all three users at once —
+   * per-user ordering cannot work when one user's row is what pins another's.
+   * And every delete is checked, because a cleanup that fails quietly is
+   * indistinguishable from one that ran.
+   */
   afterAll(async () => {
     if (!admin) return
-    for (const id of createdGroupIds) await admin.from('groups').delete().eq('id', id)
-    for (const user of [owner, friend, stranger]) {
-      if (!user) continue
-      await admin.from('expenses').delete().eq('created_by', user.profileId)
-      await admin.from('friendships').delete().eq('profile_a', user.profileId)
-      await admin.from('friendships').delete().eq('profile_b', user.profileId)
-      await admin.from('profiles').delete().eq('id', user.profileId)
-      await admin.auth.admin.deleteUser(user.authId)
+
+    const users = [owner, friend, stranger].filter(Boolean)
+    if (users.length === 0) return
+    const profileIds = users.map((u) => u.profileId)
+    const failures: string[] = []
+
+    const run = async (label: string, query: PromiseLike<{ error: { message: string } | null }>) => {
+      const { error } = await query
+      if (error) failures.push(`${label}: ${error.message}`)
+    }
+
+    // Groups first: members, group expenses and group settlements cascade off
+    // them, which removes most of the problem before it is a problem.
+    for (const id of createdGroupIds) {
+      await run(`groups ${id}`, admin.from('groups').delete().eq('id', id))
+    }
+
+    // Then the NO ACTION references, in the order they depend on each other.
+    // Settlements are the ones that were missing entirely.
+    await run(
+      'settlement_events',
+      admin.from('settlement_events').delete().in('actor_id', profileIds)
+    )
+    const ors = [
+      `created_by.in.(${profileIds.join(',')})`,
+      `from_profile.in.(${profileIds.join(',')})`,
+      `to_profile.in.(${profileIds.join(',')})`,
+    ].join(',')
+    await run('settlements', admin.from('settlements').delete().or(ors))
+
+    // An event can be ours on somebody else's expense, so actor comes before
+    // the expenses themselves rather than relying on the expense cascade.
+    await run('expense_events', admin.from('expense_events').delete().in('actor_id', profileIds))
+    await run('expenses', admin.from('expenses').delete().in('created_by', profileIds))
+
+    await run('friendships a', admin.from('friendships').delete().in('profile_a', profileIds))
+    await run('friendships b', admin.from('friendships').delete().in('profile_b', profileIds))
+
+    await run('profiles', admin.from('profiles').delete().in('id', profileIds))
+
+    for (const user of users) {
+      const { error } = await admin.auth.admin.deleteUser(user.authId)
+      if (error) failures.push(`auth user ${user.displayName}: ${error.message}`)
+    }
+
+    // Loud, and after the attempt rather than instead of it: a half-cleaned
+    // database is still better than a dirty one, and the next run needs to know.
+    if (failures.length > 0) {
+      throw new Error(
+        `Integration cleanup left rows behind — the shared local database is ` +
+          `now dirty:\n  ${failures.join('\n  ')}`
+      )
     }
   }, 60_000)
 
