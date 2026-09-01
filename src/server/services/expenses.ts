@@ -135,8 +135,12 @@ export async function createExpense(input: ExpenseInput): Promise<string> {
  * Only differences worth reading: nobody needs "Split type changed from equal
  * to equal". Amounts are rendered with the same formatter as everywhere else,
  * which is why this is computed here rather than in a trigger.
+ *
+ * Exported for its tests. It is pure, it decides what the append-only record
+ * says, and an edit it fails to describe is an edit that vanishes — so it is
+ * pinned rather than trusted.
  */
-function describeChanges(before: ExpenseDetail, after: ExpenseInput, afterCents: Cents): string[] {
+export function describeChanges(before: ExpenseDetail, after: ExpenseInput, afterCents: Cents): string[] {
   const lines: string[] = []
 
   if (before.description !== after.description) {
@@ -171,12 +175,45 @@ function describeChanges(before: ExpenseDetail, after: ExpenseInput, afterCents:
   for (const id of removed) lines.push(`${beforeNames.get(id) ?? 'Someone'} taken off the split`)
   if (added.length > 0) lines.push(`${added.length} more added to the split`)
 
-  const beforePayers = before.participants.filter((p) => p.paidCents > 0).map((p) => p.profileId)
-  const afterPayers = after.payers.map((p) => p.profileId)
-  const payerChanged =
-    beforePayers.length !== afterPayers.length ||
-    beforePayers.some((id) => !afterPayers.includes(id))
-  if (payerChanged) lines.push('Who paid changed')
+  /**
+   * Who paid, and how much each of them put in. The amounts matter as much as
+   * the names: moving €80/€40 to €70/€50 between the same two payers leaves the
+   * set identical and moves what everyone is owed, and until the form could
+   * edit a multi-payer expense at all that change could not be made — so it
+   * went unrecorded, which for an append-only history is the one unacceptable
+   * outcome.
+   */
+  const beforePaid = new Map(
+    before.participants.filter((p) => p.paidCents > 0).map((p) => [p.profileId, p.paidCents])
+  )
+  const afterPaid = new Map(after.payers.map((p) => [p.profileId, p.amountCents]))
+
+  const payerIds = new Set([...beforePaid.keys(), ...afterPaid.keys()])
+  const payerChanged = [...payerIds].some(
+    (id) => (beforePaid.get(id) ?? 0) !== (afterPaid.get(id) ?? 0)
+  )
+
+  if (payerChanged) {
+    const sameSet =
+      beforePaid.size === afterPaid.size && [...beforePaid.keys()].every((id) => afterPaid.has(id))
+
+    if (sameSet && beforePaid.size > 1) {
+      // The same people, different amounts — say the amounts, because that is
+      // the whole of what changed.
+      const nameFor = (id: string) =>
+        before.participants.find((p) => p.profileId === id)?.displayName ?? 'Someone'
+      const moved = [...afterPaid.entries()]
+        .filter(([id, cents]) => (beforePaid.get(id) ?? 0) !== cents)
+        .map(
+          ([id, cents]) =>
+            `${nameFor(id)} ${formatCents(beforePaid.get(id) ?? 0, before.currency)} → ` +
+            `${formatCents(cents, after.currency)}`
+        )
+      lines.push(`What each person paid changed: ${moved.join(', ')}`)
+    } else {
+      lines.push('Who paid changed')
+    }
+  }
 
   if (lines.length === 0 && before.splitType !== after.splitType) {
     lines.push('How it splits changed')
