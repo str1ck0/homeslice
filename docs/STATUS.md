@@ -194,22 +194,22 @@ snapshot really is the only copy.
 
 ## Next up
 
-**The priority changed on 1 September: the App Store comes before the remaining
-feature work.** The plan was rewritten around it — §7 has the detail and §5 has
-the sequence. The short version of why: four people already have this as a PWA,
-so the house-admin layer and PWA hardening are features for people who already
-have it, while the App Store is what puts it in front of anyone else. Its long
-pole is not code.
+**The App Store was considered and deferred on 1 September**, over the $99 a
+year. It recurs, and a delisted app is a dead link on a CV at the worst
+possible moment. This is a personal-use and portfolio project: four people who
+already have it installed as a PWA, and readers who click a URL. §7 of the plan
+is kept for if that changes.
 
-1. **Enrol in the Apple Developer Program.** $99/year, and identity
-   verification takes days. It is mostly waiting, so start the clock first.
-2. **In-app account deletion.** An App Store requirement (Guideline 5.1.1(v))
-   and the one with a real design question in it — see below.
-3. **A privacy policy**, as a route in the app so the URL is stable.
-4. **Route Handlers over the services**, so a native client can call the same
-   server logic. §2.3 of the plan asked for this and only half of it was built.
-5. **Native push, camera, haptics, share sheet**, then the Capacitor shell,
-   TestFlight and submission.
+1. **In-app account deletion.** Was an App Store gate (Guideline 5.1.1(v)) and
+   survives the deferral on its own merit — see below, and note that it cannot
+   be a delete.
+2. **Optimistic UI on expense creation.** The one piece of "PWA hardening" the
+   four people using this would actually feel.
+3. **A custom domain** — `homeslice.liamstrickland.dev`. The distribution is a
+   URL that works forever plus a PWA that installs to a home screen.
+
+**A privacy policy has moved down**, not off. It was a submission artefact and
+went with the submission.
 
 **Account deletion is not a delete.** History here is append-only, shared, and
 other people's balances are computed from it: if a profile vanishes, every

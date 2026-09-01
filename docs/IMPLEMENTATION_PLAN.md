@@ -1,6 +1,22 @@
 # Homeslice — Implementation Plan
 
-**Goal:** a free, self-hosted replacement for Splitwise with full feature parity, wrapped in a sharehouse-admin product. Web and installable PWA are done; **the App Store is now the priority.**
+**Goal:** a self-hosted replacement for Splitwise with full feature parity, wrapped in a sharehouse-admin product. Web and installable PWA are done and in daily use.
+
+> **The App Store is deferred, decided 1 September.** The Apple Developer
+> Program is $99 **a year**, and the recurring part is what settles it: stop
+> paying and Apple delists the app, so a portfolio link dies exactly when
+> nobody is watching. This is a personal-use and portfolio project — four
+> people who already have it installed as a PWA, and readers who click a URL
+> rather than install anything. §7 stays as the plan for if that changes;
+> Google Play at $25 once is the cheaper door if a store listing is ever wanted
+> for its own sake.
+>
+> **Account deletion survives the deferral. The privacy policy does not.**
+> Deletion was on this list because Apple requires it, but it is right
+> regardless: four real people's financial history is in there and being able
+> to get yours out is not something to make conditional on an app store. The
+> privacy policy was a submission artefact and drops down the list with the
+> submission.
 
 > **Read `docs/STATUS.md` first.** It is the record of what the code does.
 > This plan was written on 11 August 2026, before any of it was built, and
@@ -520,9 +536,26 @@ policies, since the table has none), CSV export, monthly summaries and charts.
 
 *Still cut, still on purpose: email notifications and debt-reminder nudges.*
 
-### M5 — App Store · **NEXT**
+### M5 — App Store · **DEFERRED**
 
-Substance and reasoning are in §7, which has been rewritten. The sequence:
+Deferred on 1 September over the $99/year — see the note at the top. §7 is kept
+as the plan for if that changes, and its research holds: the compliance gates
+are real, the Guideline 4.2 mitigations are things worth doing anyway, and §2.3
+still needs its HTTP half before any native client exists.
+
+**What survives the deferral and moves up:**
+
+- **In-app account deletion** — now M1's last open item rather than an App
+  Store gate. §7.2 has the design problem, which is unchanged and is the
+  interesting part: history here is append-only and shared, so deletion cannot
+  be a delete.
+- **Optimistic UI on expense creation** — wanted because the four people using
+  it would feel it, not because a reviewer would.
+- **A custom domain** — `homeslice.liamstrickland.dev`, on a domain already
+  owned. This is the distribution now: a URL that works forever, and a PWA that
+  installs to a home screen without an app store's permission.
+
+The original sequence, kept for if it is ever picked up:
 
 **M5a — start the clock (do first, it is mostly waiting).**
 Enrol in the Apple Developer Program ($99/year, individual enrolment, identity
