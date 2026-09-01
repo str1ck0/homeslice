@@ -27,9 +27,20 @@ export default async function EditExpensePage({
   const expense = await getExpense(id)
   if (!expense) notFound()
 
-  // Only the person who added it can edit; the detail page hides the link, but
-  // the URL is guessable so it is checked here too.
-  if (expense.createdBy !== profile.id) redirect(`/expenses/${id}`)
+  /**
+   * Anyone in the expense may edit it, not just whoever typed it in — the same
+   * rule the detail page applies when it decides whether to show the link, and
+   * the same one `settlements/[id]/edit` applies to a payment. This checked
+   * authorship alone until 1 September, so a participant who was not the
+   * creator saw an Edit button that bounced them straight back here.
+   *
+   * The URL is guessable, so it is checked rather than assumed — though RLS is
+   * what actually decides who may write the row.
+   */
+  const involved =
+    expense.createdBy === profile.id ||
+    expense.participants.some((p) => p.profileId === profile.id)
+  if (!involved) redirect(`/expenses/${id}`)
 
   const supabase = await createClient()
   const [categoriesResult, groups, friends, members] = await Promise.all([
