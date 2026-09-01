@@ -55,6 +55,34 @@ Several agents work here at once, in `../homeslice-worktrees/`. The worktrees
 isolate code and nothing else: one Docker daemon, one Supabase stack, one set of
 ports, one machine.
 
+**Before you start work in a worktree, check it is still safe:**
+
+```bash
+../homeslice-worktrees/check-agents.sh   # read-only, touches no database
+```
+
+Make a new one with `../homeslice-worktrees/new-agent.sh agent-4`, which cuts it
+from `origin/master`, hands you a port that is free, and refuses to hand over a
+checkout whose safety rails are missing. Both scripts live outside the repo on
+purpose — see the next rule for why that is load-bearing.
+
+**A worktree is a snapshot, and it ages.** It is cut from master at creation and
+nothing moves it forward. A guard added to master on Tuesday is absent from
+every worktree made before it, silently, for as long as nobody looks — and the
+worktree's own copy of the tooling ages with it, so a stale checkout cannot
+detect its own staleness.
+
+This is not hypothetical. On 1 September, `agent-2` and `agent-3` were still
+carrying the pre-20-August `scripts/db-query.sh`: no `--prod` flag, no local
+path, a hardcoded production project ref, and a keychain token. Every query from
+those checkouts went at the database four real people's money lives in — while
+the rule three sections up promised them it defaulted to local. They had been
+that way for twelve days. Rebase before you build on a worktree:
+
+```bash
+git -C <worktree> fetch origin && git -C <worktree> rebase origin/master
+```
+
 **Pass `-p` every time, and check which port you actually got.**
 
 | checkout | port |
@@ -97,6 +125,13 @@ genuinely down, start it or say so. Do not route around it silently.
 Both write to the shared local database. A reset in one worktree wipes the data
 another agent is halfway through verifying against, and the seed comes back
 without the state they were looking at. Say you are about to, or ask.
+
+**Say what files you are about to rewrite, and commit before you rebase.** Two
+agents rewrote `ExpenseForm.tsx` and `SplitChooser.tsx` in parallel on
+1 September and neither found out until one of them rebased onto the other's
+push. Nothing prevents that and nothing detects it — the only cheap defence is
+saying out loud which files a task will touch. Commit first and the worst case
+is a conflict you resolve; leave it uncommitted and the worst case is worse.
 
 ## Things that will bite you
 
