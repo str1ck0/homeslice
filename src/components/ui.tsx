@@ -105,6 +105,11 @@ export function EmptyState({
  * indicator — which is what a 12px pad and a zero inset used to give us. The
  * inset only reports a real number under viewport-fit=cover (set in the root
  * layout); the max() keeps a sane gap on everything else.
+ *
+ * The whole 34pt inset turned out to be more air than the bar needs: it clears
+ * the indicator by so much that the tabs float. Giving a chunk of it back sits
+ * the labels just above the indicator's band, which is where a native tab bar
+ * puts them, and the floor still holds on a phone that reports no inset.
  */
 export function BottomNav({ active }: { active: NavKey }) {
   const items = [
@@ -117,7 +122,7 @@ export function BottomNav({ active }: { active: NavKey }) {
   return (
     <nav
       className="fixed inset-x-0 bottom-0 z-40 border-t border-edge bg-raised/95 backdrop-blur"
-      style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 0.625rem)' }}
+      style={{ paddingBottom: 'max(calc(env(safe-area-inset-bottom) - 0.75rem), 0.5rem)' }}
     >
       <ul className="mx-auto flex max-w-lg">
         {items.map(({ key, href, label, Icon }) => {
@@ -167,7 +172,7 @@ export function PageShell({
     <div
       className="mx-auto flex min-h-app max-w-lg flex-col"
       // Clears the nav: its 64px of tabs, its safe-area pad, and air.
-      style={{ paddingBottom: nav ? 'calc(6rem + env(safe-area-inset-bottom))' : '2rem' }}
+      style={{ paddingBottom: nav ? 'calc(5.25rem + env(safe-area-inset-bottom))' : '2rem' }}
     >
       <header className="flex items-start justify-between gap-4 px-5 pb-4 pt-8">
         <div className="min-w-0">
