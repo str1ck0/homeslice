@@ -50,8 +50,6 @@ export default async function EditExpensePage({
     expense.groupId ? getGroupMembers(expense.groupId) : Promise.resolve([]),
   ])
 
-  const payers = expense.participants.filter((p) => p.paidCents > 0)
-
   // Turn stored per-person figures back into what the user originally typed.
   const weights: Record<string, string> = {}
   for (const participant of expense.participants) {
@@ -82,12 +80,17 @@ export default async function EditExpensePage({
     expenseDate: expense.expenseDate,
     splitType: expense.splitType as SplitType,
     categoryId: '',
-    payerId: payers[0]?.profileId ?? profile.id,
+    // Everyone who put money in, with what they put in already formatted for
+    // the input. One payer needs no amount: they paid the total by definition.
+    payers: Object.fromEntries(
+      expense.participants
+        .filter((p) => p.paidCents > 0)
+        .map((p) => [p.profileId, centsToInput(p.paidCents, expense.currency)])
+    ),
     participantIds: expense.participants
       .filter((p) => p.owedCents !== 0 || p.paidCents !== 0)
       .map((p) => p.profileId),
     weights,
-    multiplePayers: payers.length > 1,
   }
 
   // Anyone already on the expense must stay selectable, even if they have

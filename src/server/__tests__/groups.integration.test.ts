@@ -630,6 +630,60 @@ describeIntegration('group membership and deletion', () => {
       expect(data!.amount_cents).toBe(500)
     })
 
+    it('lets two people pay for one expense, and keeps the payments apart', async () => {
+      // Sam covered €4 and the owner covered €1, split evenly. The invariant
+      // trigger checks SUM(paid) = SUM(owed) = amount on the way in, so this
+      // failing at all would mean the balances behind it are wrong.
+      const { error } = await friend.client.rpc('update_expense', {
+        p_expense_id: expenseId,
+        p_description: 'cerveza',
+        p_amount_cents: 500,
+        p_currency: 'EUR',
+        p_expense_date: '2026-08-13',
+        p_split_type: 'equal',
+        p_category_id: null,
+        p_note: null,
+        p_participants: [
+          { profile_id: owner.profileId, paid_cents: 100, owed_cents: 250, split_weight: 1 },
+          { profile_id: friend.profileId, paid_cents: 400, owed_cents: 250, split_weight: 1 },
+        ],
+      })
+      expect(error).toBeNull()
+
+      const { data } = await admin!
+        .from('expense_participants')
+        .select('profile_id, paid_cents, owed_cents')
+        .eq('expense_id', expenseId)
+
+      const byProfile = new Map(data!.map((row) => [row.profile_id, row]))
+      expect(byProfile.get(owner.profileId)).toMatchObject({ paid_cents: 100, owed_cents: 250 })
+      expect(byProfile.get(friend.profileId)).toMatchObject({ paid_cents: 400, owed_cents: 250 })
+
+      // Net contribution is paid − owed, so the friend is up €1.50 and the
+      // owner down €1.50 — the two sides of the same €1.50.
+      const net = (id: string) =>
+        (byProfile.get(id)!.paid_cents ?? 0) - (byProfile.get(id)!.owed_cents ?? 0)
+      expect(net(friend.profileId)).toBe(150)
+      expect(net(owner.profileId)).toBe(-150)
+      expect(net(friend.profileId) + net(owner.profileId)).toBe(0)
+
+      // Put it back, so the tests after this one see what they expect.
+      await friend.client.rpc('update_expense', {
+        p_expense_id: expenseId,
+        p_description: 'cerveza',
+        p_amount_cents: 500,
+        p_currency: 'EUR',
+        p_expense_date: '2026-08-13',
+        p_split_type: 'equal',
+        p_category_id: null,
+        p_note: null,
+        p_participants: [
+          { profile_id: owner.profileId, paid_cents: 500, owed_cents: 250, split_weight: 1 },
+          { profile_id: friend.profileId, paid_cents: 0, owed_cents: 250, split_weight: 1 },
+        ],
+      })
+    })
+
     it('still keeps a stranger out', async () => {
       const { data } = await stranger.client
         .from('expenses')

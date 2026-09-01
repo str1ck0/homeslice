@@ -8,7 +8,8 @@ import { splitExpense, type SplitType } from '@/core/split'
 import { formatCents, parseAmountToCents } from '@/core/money'
 import { CURRENCY_CODES } from '@/core/currencies'
 import ImagePicker from '@/components/ImagePicker'
-import SplitChooser, { parseWeight } from './SplitChooser'
+import SplitChooser, { onePayer, parseWeight } from './SplitChooser'
+import { confinePayers, resolvePayers, type PayerAmounts } from '@/core/payers'
 import WithPicker, { type GroupOption } from './WithPicker'
 import { uploadReceipts } from '@/lib/upload'
 
@@ -27,15 +28,12 @@ export interface EditingExpense {
   expenseDate: string
   splitType: SplitType
   categoryId: string
-  payerId: string
+  /** Who paid, keyed by profile id, with the amount already formatted for the
+   *  input. A single entry means they paid the total. */
+  payers: PayerAmounts
   participantIds: string[]
   /** Keyed by profile id, in the form the matching split type expects. */
   weights: Record<string, string>
-  /**
-   * The form offers one payer. An expense with several can only arrive via the
-   * API, and silently flattening it would quietly change what people owe.
-   */
-  multiplePayers: boolean
 }
 
 export default function ExpenseForm({
@@ -122,7 +120,9 @@ export default function ExpenseForm({
     () => editing?.expenseDate ?? new Date().toISOString().slice(0, 10)
   )
   const [categoryId, setCategoryId] = useState(editing?.categoryId ?? '')
-  const [payerId, setPayerId] = useState(editing?.payerId ?? currentProfileId)
+  const [payers, setPayers] = useState<PayerAmounts>(
+    editing?.payers ?? onePayer(currentProfileId)
+  )
   const [splitType, setSplitType] = useState<SplitType>(editing?.splitType ?? 'equal')
   const [selected, setSelected] = useState<string[]>(
     editing?.participantIds ?? members.map((m) => m.id)
@@ -137,6 +137,19 @@ export default function ExpenseForm({
   const [error, setError] = useState<string | null>(null)
 
   const participants = members.filter((m) => selected.includes(m.id))
+
+  /**
+   * Switching group swaps the whole cast, and a payer who is not in it any more
+   * would be written against an expense they are not part of. Drop them; if
+   * that empties the set, fall back to you, because somebody paid for this.
+   */
+  const effectivePayers = useMemo(() => {
+    const kept = confinePayers(
+      payers,
+      members.map((m) => m.id)
+    )
+    return Object.keys(kept).length > 0 ? kept : onePayer(currentProfileId)
+  }, [payers, members, currentProfileId])
 
   /** What the "Split with" control says when closed. */
   const withSummary = useMemo(() => {
@@ -158,6 +171,12 @@ export default function ExpenseForm({
     if (!amount.trim() || participants.length === 0) return null
     try {
       const totalCents = parseAmountToCents(amount, currency)
+
+      // Who paid is checked alongside how it splits, because both have to hold
+      // for the expense to balance and finding out about one at a time means
+      // fixing the form twice.
+      resolvePayers(effectivePayers, totalCents, currency)
+
       const shares = splitExpense(
         splitType,
         totalCents,
@@ -170,7 +189,7 @@ export default function ExpenseForm({
     } catch (err) {
       return { shares: null, error: err instanceof Error ? err.message : 'Check the split' }
     }
-  }, [amount, currency, splitType, participants, weights])
+  }, [amount, currency, splitType, participants, weights, effectivePayers])
 
   // Switching group swaps the whole cast, so default everyone back on unless
   // the user has deliberately picked a subset.
@@ -210,7 +229,7 @@ export default function ExpenseForm({
         splitType,
         categoryId: categoryId || null,
         note: null,
-        payers: [{ profileId: effectivePayerId, amountCents: totalCents }],
+        payers: resolvePayers(effectivePayers, totalCents, currency),
         participants: participants.map((m) => ({
           profileId: m.id,
           weight: parseWeight(weights[m.id], splitType, currency),
@@ -243,8 +262,6 @@ export default function ExpenseForm({
     }
   }
 
-  // The chosen payer may not exist in the new cast after switching group.
-  const effectivePayerId = members.some((m) => m.id === payerId) ? payerId : currentProfileId
 
   return (
     <form
@@ -274,14 +291,6 @@ export default function ExpenseForm({
           ← Cancel
         </span>
       </div>
-
-      {editing?.multiplePayers && (
-        <p className="rounded-xl bg-negative/10 px-4 py-3 text-sm text-negative">
-          This expense was paid by more than one person. The form only handles a single
-          payer, so saving would change who paid what — edit it via the API, or delete and
-          re-add it.
-        </p>
-      )}
 
       <div className="flex flex-col gap-1.5">
         <button
@@ -409,9 +418,9 @@ export default function ExpenseForm({
           currentProfileId={currentProfileId}
           currency={currency}
           amount={amount}
-          value={{ payerId: effectivePayerId, splitType, selected, weights }}
+          value={{ payers: effectivePayers, splitType, selected, weights }}
           onChange={(next) => {
-            setPayerId(next.payerId)
+            setPayers(next.payers)
             setSplitType(next.splitType)
             setWeights(next.weights)
             // A deliberate choice, so the "everyone by default" effect must
@@ -462,12 +471,7 @@ export default function ExpenseForm({
         <div className="mx-auto max-w-lg">
           <button
             type="submit"
-            disabled={
-              busy ||
-              Boolean(preview?.error) ||
-              participants.length === 0 ||
-              Boolean(editing?.multiplePayers)
-            }
+            disabled={busy || Boolean(preview?.error) || participants.length === 0}
             className="w-full rounded-xl bg-accent px-4 py-3.5 font-semibold text-white transition-opacity disabled:opacity-50"
           >
             {busy ? (uploadStatus ?? 'Saving…') : editing ? 'Save changes' : 'Save expense'}

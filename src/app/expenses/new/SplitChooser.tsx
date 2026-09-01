@@ -4,6 +4,13 @@ import { useMemo, useState } from 'react'
 import { Avatar } from '@/components/ui'
 import { SPLIT_TYPES, splitExpense, type SplitType } from '@/core/split'
 import { formatCents, parseAmountToCents } from '@/core/money'
+import {
+  payerIds,
+  payerRemainder,
+  solePayer,
+  togglePayer,
+  type PayerAmounts,
+} from '@/core/payers'
 
 export interface Member {
   id: string
@@ -12,10 +19,21 @@ export interface Member {
 }
 
 export interface SplitState {
-  payerId: string
+  /**
+   * Who put money in, keyed by profile id, holding the amount as typed. One
+   * entry is the common case and its value is ignored — a sole payer paid the
+   * total, so the form never asks. Two or more and each is typed and must add
+   * up. See `src/core/payers.ts`.
+   */
+  payers: PayerAmounts
   splitType: SplitType
   selected: string[]
   weights: Record<string, string>
+}
+
+/** Convenience for the overwhelmingly common single-payer case. */
+export function onePayer(profileId: string): PayerAmounts {
+  return { [profileId]: '' }
 }
 
 const SPLIT_LABELS: Record<SplitType, string> = {
@@ -66,6 +84,7 @@ export default function SplitChooser({
   const [open, setOpen] = useState(false)
   const [advanced, setAdvanced] = useState(false)
 
+
   const others = members.filter((m) => m.id !== currentProfileId)
   const me = members.find((m) => m.id === currentProfileId)
 
@@ -79,8 +98,25 @@ export default function SplitChooser({
     }
   }, [amount, currency])
 
+
+  const soleId = solePayer(value.payers)
+
+  /**
+   * Whether the payer editor is showing amounts. Seeded from the expense, so
+   * opening one that several people paid for lands in the right mode, and then
+   * held separately: ticking a second payer and ticking them off again should
+   * not throw you back to the dropdown mid-edit.
+   */
+  const [splittingPayment, setSplittingPayment] = useState(() => soleId === null)
+
+  const remainder = payerRemainder(value.payers, totalCents, currency)
+
   const nameOf = (id: string) =>
     id === currentProfileId ? 'you' : (members.find((m) => m.id === id)?.name ?? 'someone')
+
+  /** Same, but capitalised for the start of a sentence. */
+  const payerLabel = (id: string) =>
+    id === currentProfileId ? 'You' : (members.find((m) => m.id === id)?.name ?? 'Someone')
 
   /** The arrangements worth naming, in the order people reach for them. */
   const shortcuts = useMemo(() => {
@@ -90,7 +126,7 @@ export default function SplitChooser({
     const list: { key: string; label: string; state: SplitState }[] = []
 
     const equal = (payerId: string, selected: string[]): SplitState => ({
-      payerId,
+      payers: onePayer(payerId),
       splitType: 'equal',
       selected,
       weights: {},
@@ -150,8 +186,15 @@ export default function SplitChooser({
     }
 
     const myShare = shares.find((s) => s.profileId === currentProfileId)?.owedCents ?? 0
+    const payer = solePayer(state.payers)
 
-    if (state.payerId === currentProfileId) {
+    // Every shortcut has exactly one payer, so this only runs for one. A split
+    // assembled by hand can have several, and there the sentence would have to
+    // name each of them and what they put in — which is what the payer editor
+    // itself already shows, line by line.
+    if (payer === null) return null
+
+    if (payer === currentProfileId) {
       const owedToMe = totalCents - myShare
       if (owedToMe === 0) return null
       return {
@@ -166,14 +209,17 @@ export default function SplitChooser({
     if (myShare === 0) return { text: 'Nothing changes for you', owed: true }
 
     return {
-      text: `You owe ${nameOf(state.payerId)} ${formatCents(myShare, currency)}`,
+      text: `You owe ${nameOf(payer)} ${formatCents(myShare, currency)}`,
       owed: false,
     }
   }
 
   function matches(state: SplitState): boolean {
+    const mine = payerIds(value.payers)
+    const theirs = payerIds(state.payers)
     return (
-      state.payerId === value.payerId &&
+      theirs.length === mine.length &&
+      theirs.every((id) => mine.includes(id)) &&
       state.splitType === value.splitType &&
       state.selected.length === value.selected.length &&
       state.selected.every((id) => value.selected.includes(id))
@@ -185,8 +231,22 @@ export default function SplitChooser({
     const hit = shortcuts.find((option) => matches(option.state))
     if (hit) return hit.label
 
-    const who = value.payerId === currentProfileId ? 'You' : nameOf(value.payerId)
+    const ids = payerIds(value.payers)
     const how = SPLIT_LABELS[value.splitType].toLowerCase()
+
+    // Names rather than a count, because "2 people paid" is the one thing about
+    // a multi-payer expense you cannot work out from the amount.
+    const who =
+      ids.length === 0
+        ? 'Nobody'
+        : ids.length === 1
+          ? ids[0] === currentProfileId
+            ? 'You'
+            : nameOf(ids[0])
+          : ids.length === 2
+            ? `${payerLabel(ids[0])} and ${payerLabel(ids[1])}`
+            : `${payerLabel(ids[0])} and ${ids.length - 1} others`
+
     return `${who} paid, split ${how} between ${value.selected.length}`
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value, shortcuts, members])
@@ -261,7 +321,8 @@ export default function SplitChooser({
               {shortcuts.map((option) => {
                 const result = consequence(option.state)
                 const selected = matches(option.state)
-                const payer = members.find((m) => m.id === option.state.payerId)
+                const payerId = solePayer(option.state.payers)
+                const payer = members.find((m) => m.id === payerId)
 
                 return (
                   <li key={option.key}>
@@ -323,20 +384,103 @@ export default function SplitChooser({
           </>
         ) : (
           <div className="flex flex-col gap-5 p-5">
-            <label className="flex flex-col gap-1.5">
-              <span className="text-sm font-medium">Who paid?</span>
-              <select
-                value={value.payerId}
-                onChange={(event) => onChange({ ...value, payerId: event.target.value })}
-                className="h-14 rounded-xl border border-edge bg-raised px-4 text-base outline-none focus:border-accent"
-              >
-                {members.map((member) => (
-                  <option key={member.id} value={member.id}>
-                    {member.id === currentProfileId ? 'You' : member.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <div className="flex flex-col gap-2">
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-sm font-medium">Who paid?</span>
+                <button
+                  type="button"
+                  onClick={() => setSplittingPayment((on) => !on)}
+                  className="text-sm font-semibold text-accent"
+                >
+                  {splittingPayment ? 'One person paid' : 'More than one paid'}
+                </button>
+              </div>
+
+              {!splittingPayment ? (
+                <select
+                  value={soleId ?? currentProfileId}
+                  onChange={(event) => onChange({ ...value, payers: onePayer(event.target.value) })}
+                  className="h-14 rounded-xl border border-edge bg-raised px-4 text-base outline-none focus:border-accent"
+                >
+                  {members.map((member) => (
+                    <option key={member.id} value={member.id}>
+                      {member.id === currentProfileId ? 'You' : member.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <>
+                  <ul className="flex flex-col gap-1.5">
+                    {members.map((member) => {
+                      const paying = member.id in value.payers
+
+                      return (
+                        <li
+                          key={member.id}
+                          className={`flex items-center gap-3 rounded-xl border p-3 transition-colors ${
+                            paying ? 'border-edge bg-raised' : 'border-edge/50 opacity-50'
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            onClick={() =>
+                              onChange({ ...value, payers: togglePayer(value.payers, member.id) })
+                            }
+                            aria-pressed={paying}
+                            className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                          >
+                            <Avatar name={member.name} url={member.avatarUrl} size={32} />
+                            <span className="truncate text-sm font-medium">
+                              {member.id === currentProfileId ? 'You' : member.name}
+                            </span>
+                          </button>
+
+                          {paying && (
+                            <input
+                              value={value.payers[member.id] ?? ''}
+                              onChange={(event) =>
+                                onChange({
+                                  ...value,
+                                  payers: { ...value.payers, [member.id]: event.target.value },
+                                })
+                              }
+                              inputMode="decimal"
+                              placeholder="0.00"
+                              aria-label={`What ${
+                                member.id === currentProfileId ? 'you' : member.name
+                              } paid`}
+                              className="amount w-28 rounded-lg border border-edge bg-surface px-2 py-1.5 text-right text-sm outline-none focus:border-accent"
+                            />
+                          )}
+                        </li>
+                      )
+                    })}
+                  </ul>
+
+                  {/* A running difference rather than a pass/fail at the bottom
+                      of the form: the last box you type into is where you find
+                      out, which is the only place it is any use. */}
+                  {remainder !== null && (
+                    <p
+                      className={`text-xs ${
+                        remainder === 0 ? 'text-positive' : 'text-negative'
+                      }`}
+                    >
+                      {remainder === 0
+                        ? 'The payments add up.'
+                        : remainder > 0
+                          ? `${formatCents(remainder, currency)} still to account for`
+                          : `${formatCents(-remainder, currency)} over the total`}
+                    </p>
+                  )}
+                  {totalCents === null && (
+                    <p className="text-xs text-muted">
+                      Enter an amount above and these have to add up to it.
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
 
             <div className="flex flex-col gap-2">
               <span className="text-sm font-medium">How should it split?</span>
