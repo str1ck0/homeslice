@@ -5,6 +5,7 @@ import AvatarPicker from '@/components/AvatarPicker'
 import { setAvatarAction } from '@/app/actions'
 import SignOutButton from './SignOutButton'
 import ProfileFields from './ProfileFields'
+import ThemeToggle from './ThemeToggle'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,8 +33,8 @@ export default async function AccountPage() {
           displayName={profile.display_name}
           defaultCurrency={profile.default_currency}
         />
+        <ThemeToggle />
       </Card>
-
 
       <SignOutButton />
     </PageShell>

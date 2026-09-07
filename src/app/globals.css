@@ -27,8 +27,14 @@
   --on-negative: 255 255 255;
 }
 
+/*
+ * Dark values apply on system preference, unless the account tab's toggle has
+ * set an explicit data-theme — in which case that wins in both directions.
+ * Never fold these into one selector: a media query and an attribute
+ * selector can't be OR'd, so the values are repeated on purpose.
+ */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme='light']) {
     --surface: 15 14 13;
     --surface-raised: 26 25 23;
     --border: 55 52 48;
@@ -42,6 +48,21 @@
     --negative: 251 113 133;
     --on-negative: 46 4 14;
   }
+}
+
+:root[data-theme='dark'] {
+  --surface: 15 14 13;
+  --surface-raised: 26 25 23;
+  --border: 55 52 48;
+  --text: 245 244 242;
+  --text-muted: 163 156 148;
+
+  --accent: 255 144 0;
+  --on-accent: 38 18 0;
+
+  --positive: 74 222 128;
+  --negative: 251 113 133;
+  --on-negative: 46 4 14;
 }
 
 body {

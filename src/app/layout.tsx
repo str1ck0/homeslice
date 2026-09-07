@@ -30,10 +30,17 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 }
 
+// Read before paint, not in a client component: a useEffect would flash the
+// system theme first and repaint after hydration.
+const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem('homeslice-theme');if(t==='light'||t==='dark')document.documentElement.dataset.theme=t}catch(e){}})()`
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body className="min-h-app antialiased">{children}</body>
+    <html lang="en" suppressHydrationWarning>
+      <body className="min-h-app antialiased">
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        {children}
+      </body>
     </html>
   )
 }
