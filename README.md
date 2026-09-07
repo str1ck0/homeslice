@@ -1,7 +1,6 @@
 # Homeslice
 
-A self-hosted expense splitter, built to replace Splitwise for a group of four
-who kept hitting its free-tier limits. It is in daily use, and the expense
+A self-hosted expense splitter, built to replace Splitwise due to its free-tier limits. It is in daily use, and the expense
 history in it is real money.
 
 The interesting parts are not the features — there are plenty of Splitwise
