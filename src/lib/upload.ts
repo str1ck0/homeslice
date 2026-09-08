@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/client'
 import { compressImage } from '@/lib/image-utils'
+import { avatarObjectPath } from '@/lib/avatar-path'
 
 export class UploadError extends Error {}
 
@@ -59,6 +60,27 @@ export async function uploadAvatar(file: File): Promise<string> {
   } = supabase.storage.from('avatars').getPublicUrl(path)
 
   return publicUrl
+}
+
+/**
+ * Discard an avatar that was uploaded but never attached to anything — a photo
+ * chosen on the create-group form and then swapped or removed before the group
+ * existed. Once a URL is on a row the server does this cleanup instead, with
+ * the service role, because the previous photo may be somebody else's file.
+ * Here it is always the caller's own upload, which the storage policy allows.
+ *
+ * Never throws: an orphaned file is a few wasted kilobytes, and failing the
+ * user's actual action over it would be the worse outcome.
+ */
+export async function discardAvatarUpload(url: string | null): Promise<void> {
+  const path = avatarObjectPath(url)
+  if (!path) return
+  try {
+    const { error } = await createClient().storage.from('avatars').remove([path])
+    if (error) console.error('Could not discard unused avatar:', error.message)
+  } catch (error) {
+    console.error('Could not discard unused avatar:', error)
+  }
 }
 
 export async function uploadReceipts(files: File[]): Promise<string[]> {

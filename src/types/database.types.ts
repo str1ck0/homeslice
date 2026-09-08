@@ -944,6 +944,7 @@ export type Database = {
       create_group: {
         Args: {
           p_address?: string
+          p_avatar_url?: string
           p_currency?: string
           p_icon?: string
           p_label?: string

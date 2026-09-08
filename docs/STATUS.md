@@ -45,8 +45,9 @@ The core Splitwise loop is done and has been used by two real people.
 - **Settle up** — from a group or a friend, with the outstanding amount
   pre-filled.
 - **Photos** — people and groups have avatars, compressed and centre-cropped
-  square in the browser before upload. Expenses carry as many receipt photos as
-  you like. Replacing or removing a photo deletes the file it replaced.
+  square in the browser before upload; a group can be given its photo on the
+  create form or later under settings. Expenses carry as many receipt photos
+  as you like. Replacing or removing a photo deletes the file it replaced.
 - **PWA** — installable, icons, safe-area handling, mobile-first bottom nav.
 
 ## What is deliberately not built

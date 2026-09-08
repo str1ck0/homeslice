@@ -13,20 +13,7 @@
  */
 
 import { createAdminClient } from '@/lib/supabase/server'
-
-const AVATAR_PATH = /\/storage\/v1\/object\/public\/avatars\/(.+)$/
-
-/** The object path inside the bucket, or null if this is not one of ours. */
-export function avatarObjectPath(url: string | null): string | null {
-  if (!url) return null
-  const match = AVATAR_PATH.exec(url)
-  if (!match) return null
-  try {
-    return decodeURIComponent(match[1])
-  } catch {
-    return null
-  }
-}
+import { avatarObjectPath } from '@/lib/avatar-path'
 
 /**
  * Delete the file a previous avatar URL pointed at. Never throws: losing the

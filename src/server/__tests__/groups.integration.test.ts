@@ -898,6 +898,31 @@ describeIntegration('group membership and deletion', () => {
       expect(still ?? []).toHaveLength(1)
     })
 
+    it('can be attached to a group as it is created', async () => {
+      const path = `${owner.authId}/${stamp}-founding.jpg`
+      await owner.client.storage
+        .from('avatars')
+        .upload(path, pixel, { contentType: 'image/jpeg' })
+      uploadedPaths.push(path)
+      const { data: publicUrl } = owner.client.storage.from('avatars').getPublicUrl(path)
+
+      const { data: groupId, error } = await owner.client.rpc('create_group', {
+        p_name: `Photographed ${stamp}`,
+        p_currency: 'ZAR',
+        p_avatar_url: publicUrl.publicUrl,
+      })
+      expect(error).toBeNull()
+      createdGroupIds.push(groupId as string)
+
+      const { data: group } = await owner.client
+        .from('groups')
+        .select('avatar_url')
+        .eq('id', groupId as string)
+        .single()
+
+      expect(group?.avatar_url).toBe(publicUrl.publicUrl)
+    })
+
     it('is readable by anyone, which is what makes lists cheap', async () => {
       const path = `${owner.authId}/${stamp}-public.jpg`
       await owner.client.storage

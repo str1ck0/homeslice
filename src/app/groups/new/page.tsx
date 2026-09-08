@@ -3,6 +3,8 @@
 import { useRef, useState } from 'react'
 import Link from 'next/link'
 import { createGroupAction, joinGroupAction } from '@/app/actions'
+import AvatarPicker from '@/components/AvatarPicker'
+import { discardAvatarUpload } from '@/lib/upload'
 
 /**
  * Suggestions, not a fixed list. The label is free text — someone can type
@@ -14,8 +16,20 @@ export default function NewGroupPage() {
   const [tab, setTab] = useState<'create' | 'join'>('create')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [name, setName] = useState('')
   const [label, setLabel] = useState('')
+  // Uploaded the moment it is picked, under the uploader's own folder, so it
+  // needs no group to exist yet. Only the URL travels with the form.
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const submitting = useRef(false)
+
+  async function stagePhoto(url: string | null): Promise<{ ok: boolean }> {
+    // Swapping or removing before the group exists leaves the earlier upload
+    // attached to nothing, so it is thrown away here rather than left behind.
+    if (avatarUrl && avatarUrl !== url) await discardAvatarUpload(avatarUrl)
+    setAvatarUrl(url)
+    return { ok: true }
+  }
 
   async function submit(action: (data: FormData) => Promise<{ ok: boolean; error?: string }>, form: FormData) {
     // A ref, not the busy state: setBusy is asynchronous, so a second submit
@@ -71,12 +85,22 @@ export default function NewGroupPage() {
             <span className="text-sm font-medium">Group name</span>
             <input
               name="name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
               required
               maxLength={80}
               placeholder="Lisbon 2026"
               className="h-14 rounded-xl border border-edge bg-raised px-4 text-base outline-none focus:border-accent"
             />
           </label>
+
+          <div className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium">
+              Photo <span className="font-normal text-muted">Optional</span>
+            </span>
+            <AvatarPicker name={name} url={avatarUrl} size={64} onSave={stagePhoto} />
+            <input type="hidden" name="avatar_url" value={avatarUrl ?? ''} />
+          </div>
 
           <div className="flex flex-col gap-1.5">
             <span className="text-sm font-medium">

@@ -23,6 +23,10 @@ export const createGroupSchema = z.object({
   label: z.string().trim().max(60).optional().nullable(),
   icon: z.string().trim().max(16).optional().nullable(),
   address: z.string().trim().max(200).optional().nullable(),
+  // Already uploaded by the browser; only the URL arrives here. Same rule as
+  // setGroupAvatar, so a photo chosen at creation is no different from one
+  // added under settings later.
+  avatarUrl: z.string().url().max(500).optional().nullable(),
 })
 
 export type CreateGroupInput = z.infer<typeof createGroupSchema>
@@ -50,6 +54,7 @@ export async function createGroup(input: CreateGroupInput): Promise<string> {
     // Whatever you normally spend in, as the first suggestion only.
     p_currency: me.default_currency,
     p_address: parsed.address ?? null,
+    p_avatar_url: parsed.avatarUrl ?? null,
   } as never)
 
   if (error) throw new Error(error.message)

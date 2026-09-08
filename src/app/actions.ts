@@ -64,6 +64,7 @@ export async function createGroupAction(formData: FormData): Promise<ActionResul
       label: String(formData.get('label') ?? '') || null,
       icon: String(formData.get('icon') ?? '') || null,
       address: String(formData.get('address') ?? '') || null,
+      avatarUrl: String(formData.get('avatar_url') ?? '') || null,
     })
   } catch (error) {
     return toResult(error)
