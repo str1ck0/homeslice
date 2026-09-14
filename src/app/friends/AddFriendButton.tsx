@@ -94,8 +94,8 @@ export default function AddFriendButton({ compact = false }: { compact?: boolean
         </label>
 
         <p className="text-center text-sm text-muted text-balance">
-          They need a Homeslice account first. Send them the app, then add them once they have
-          picked a name.
+          They need a Homeslice account first. They&rsquo;ll get a request, and you can split
+          with them once they accept.
         </p>
 
         {error && (

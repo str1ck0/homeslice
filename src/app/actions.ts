@@ -37,7 +37,12 @@ import {
   restoreSettlement,
   type SettlementInput,
 } from '@/server/services/settlements'
-import { addFriend, removeFriend } from '@/server/services/friends'
+import {
+  acceptFriend,
+  addFriend,
+  declineFriendRequest,
+  removeFriend,
+} from '@/server/services/friends'
 
 export interface ActionResult {
   ok: boolean
@@ -335,10 +340,37 @@ export async function restoreSettlementAction(
 
 export async function addFriendAction(name: string): Promise<ActionResult> {
   try {
-    const profileId = await addFriend(name)
+    const result = await addFriend(name)
     revalidatePath('/friends')
     revalidatePath('/expenses/new')
-    return { ok: true, data: profileId }
+    return { ok: true, data: result }
+  } catch (error) {
+    return toResult(error)
+  }
+}
+
+/** Accepting or declining changes who you can split with and what Home shows. */
+function revalidateFriendRequest() {
+  revalidatePath('/friends')
+  revalidatePath('/dashboard')
+  revalidatePath('/expenses/new')
+}
+
+export async function acceptFriendAction(profileId: string): Promise<ActionResult> {
+  try {
+    await acceptFriend(profileId)
+    revalidateFriendRequest()
+    return { ok: true }
+  } catch (error) {
+    return toResult(error)
+  }
+}
+
+export async function declineFriendRequestAction(profileId: string): Promise<ActionResult> {
+  try {
+    await declineFriendRequest(profileId)
+    revalidateFriendRequest()
+    return { ok: true }
   } catch (error) {
     return toResult(error)
   }

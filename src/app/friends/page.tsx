@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { getCurrentProfile } from '@/server/services/session'
-import { listFriends } from '@/server/services/friends'
+import { listFriendRequests, listFriends, type Friend } from '@/server/services/friends'
 import { debtLinesWith, getOverview, totalWith } from '@/server/services/overview'
 import {
   Avatar,
@@ -13,6 +13,7 @@ import {
   PageShell,
 } from '@/components/ui'
 import AddFriendButton from './AddFriendButton'
+import FriendRequestButtons from './FriendRequestButtons'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,7 +26,11 @@ export default async function FriendsPage({
   const profile = await getCurrentProfile()
   if (!profile) redirect('/auth')
 
-  const [friends, overview] = await Promise.all([listFriends(), getOverview(profile.id)])
+  const [friends, requests, overview] = await Promise.all([
+    listFriends(),
+    listFriendRequests(),
+    getOverview(profile.id),
+  ])
 
   const rows = friends.map((friend) => ({
     friend,
@@ -56,13 +61,24 @@ export default async function FriendsPage({
         </p>
       )}
 
+      {/* Above everything else: it is the one thing on this page waiting on you. */}
+      {requests.incoming.length > 0 && (
+        <RequestList
+          title="Friend requests"
+          people={requests.incoming}
+          note="wants to split with you"
+          direction="incoming"
+          className="mb-6"
+        />
+      )}
+
       {overview.overall.size > 0 && <BalanceSummary totals={overview.overall} className="mb-5" />}
 
       {friends.length === 0 ? (
         <Card>
           <EmptyState
             title="No friends yet"
-            body="Add someone by the name they go by on Homeslice. They'll need an account of their own — send them the app first if they haven't got one."
+            body="Add someone by the name they go by on Homeslice. They'll need an account of their own, and to accept your request before you can split with them."
             action={<AddFriendButton />}
           />
         </Card>
@@ -104,6 +120,53 @@ export default async function FriendsPage({
           Add expense
         </Link>
       )}
+
+      {requests.outgoing.length > 0 && (
+        <RequestList
+          title="Waiting to accept"
+          people={requests.outgoing}
+          note="request sent"
+          direction="outgoing"
+          className="mt-8"
+        />
+      )}
     </PageShell>
+  )
+}
+
+function RequestList({
+  title,
+  people,
+  note,
+  direction,
+  className = '',
+}: {
+  title: string
+  people: Friend[]
+  note: string
+  direction: 'incoming' | 'outgoing'
+  className?: string
+}) {
+  return (
+    <section className={className}>
+      <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted">{title}</h2>
+      <ul className="flex flex-col gap-2">
+        {people.map((person) => (
+          <li
+            key={person.profileId}
+            className={`flex items-center gap-3 rounded-2xl border bg-raised p-4 ${
+              direction === 'incoming' ? 'border-accent/50' : 'border-edge'
+            }`}
+          >
+            <Avatar name={person.displayName} url={person.avatarUrl} size={44} />
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-semibold">{person.displayName}</p>
+              <p className="text-sm text-muted">{note}</p>
+            </div>
+            <FriendRequestButtons profileId={person.profileId} direction={direction} />
+          </li>
+        ))}
+      </ul>
+    </section>
   )
 }

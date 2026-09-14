@@ -40,14 +40,15 @@ and do not be alarmed that they are legible.
 
 ## Signing in locally
 
-Four seeded logins, all `password123`:
+Five seeded logins, all `password123`:
 
 | Email | Name | Notes |
 | --- | --- | --- |
-| devin@homeslice.test | Devin | the one to sign in as; in the group, owed money |
+| devin@homeslice.test | Devin | the one to sign in as; in the group, owed money, has a friend request from Eli to answer |
 | ada@homeslice.test | Ada | in the group, owes money |
 | bo@homeslice.test | Bo | in the group |
 | cleo@homeslice.test | Cleo | not in the group, exactly settled up |
+| eli@homeslice.test | Eli | has asked Devin to be friends and is waiting; nothing else |
 
 Magic links work too — they land in Mailpit at :54324 rather than a real inbox.
 Note that `supabase auth admin generate_link` produces an *implicit-flow* link

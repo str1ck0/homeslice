@@ -98,11 +98,16 @@ describeIntegration('group membership and deletion', () => {
       createUser('stranger'),
     ])
 
-    // Owner and friend know each other; stranger knows nobody.
+    // Owner and friend know each other; stranger knows nobody. Adding someone
+    // only sends a request, so the friend has to accept it.
     const { error } = await owner.client.rpc('add_friend', {
       p_name: friend.displayName,
     })
     if (error) throw error
+    const { error: acceptError } = await friend.client.rpc('accept_friend', {
+      p_profile_id: owner.profileId,
+    })
+    if (acceptError) throw acceptError
   }, 60_000)
 
   /**

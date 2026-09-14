@@ -20,9 +20,13 @@ The core Splitwise loop is done and has been used by two real people.
   two people can never look identical in a group. Spaces and capitals are fine —
   "Liam Strickland", "Liam S" and "Stricko" are all valid. Changeable on Account,
   where a clash says "Stricko is taken" rather than a database error.
-- **Friends** — add by name. Everyone has an account: there are no placeholder
-  people, and a name that belongs to nobody is a miss rather than a new profile.
-  Sharing an expense auto-creates the friendship.
+- **Friends** — add by name, and they accept. Everyone has an account: there
+  are no placeholder people, and a name that belongs to nobody is a miss rather
+  than a new profile. Adding someone sends a request (since 14 September); until
+  they accept, nobody can put them in an expense or a payment, which the
+  database enforces rather than the form. Asking someone who already asked you
+  accepts. Sharing an expense still befriends the other people in it.
+  Nobody can read anyone else's email address through the API.
 - **Groups** — create, rename, join by invite code, free-text label, add
   friends, remove members, leave, delete. No type enum: every group can do
   everything, and no currency either — a group runs in as many currencies as

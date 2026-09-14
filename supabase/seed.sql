@@ -57,6 +57,7 @@ select pg_temp.seed_user('devin@homeslice.test', 'Devin');
 select pg_temp.seed_user('ada@homeslice.test',   'Ada');
 select pg_temp.seed_user('bo@homeslice.test',    'Bo');
 select pg_temp.seed_user('cleo@homeslice.test',  'Cleo');
+select pg_temp.seed_user('eli@homeslice.test',   'Eli');
 
 -- Fixed profile ids so tests and hand-written SQL can name a person. Nothing
 -- references profiles yet at this point, so the renumbering is free.
@@ -68,6 +69,8 @@ update public.profiles set id = '33333333-3333-4333-8333-333333333333', default_
  where email = 'bo@homeslice.test';
 update public.profiles set id = '44444444-4444-4444-8444-444444444444', default_currency = 'ZAR'
  where email = 'cleo@homeslice.test';
+update public.profiles set id = '66666666-6666-4666-8666-666666666666', default_currency = 'ZAR'
+ where email = 'eli@homeslice.test';
 
 -- profile_a < profile_b is a check constraint, and the ids above are ordered.
 insert into public.friendships (profile_a, profile_b) values
@@ -75,6 +78,12 @@ insert into public.friendships (profile_a, profile_b) values
   ('11111111-1111-4111-8111-111111111111', '33333333-3333-4333-8333-333333333333'),
   ('11111111-1111-4111-8111-111111111111', '44444444-4444-4444-8444-444444444444'),
   ('22222222-2222-4222-8222-222222222222', '33333333-3333-4333-8333-333333333333');
+
+-- Eli has asked Devin and is waiting, so signing in as Devin shows a request to
+-- answer, and signing in as Eli shows one waiting.
+insert into public.friendships (profile_a, profile_b, status, requested_by) values
+  ('11111111-1111-4111-8111-111111111111', '66666666-6666-4666-8666-666666666666',
+   'pending', '66666666-6666-4666-8666-666666666666');
 
 -- --- 2. A group -------------------------------------------------------------
 

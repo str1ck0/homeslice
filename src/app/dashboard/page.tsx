@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getCurrentProfile } from '@/server/services/session'
 import { getOverview } from '@/server/services/overview'
-import { listFriends } from '@/server/services/friends'
+import { listFriendRequests, listFriends } from '@/server/services/friends'
 import { listMyGroups } from '@/server/services/groups'
 import { listRecentActivity } from '@/server/services/activity'
 import { BalanceSummary, Card, EmptyState, PageShell } from '@/components/ui'
@@ -32,10 +32,12 @@ export default async function DashboardPage({
   const profile = await getCurrentProfile()
   if (!profile) redirect('/auth')
 
-  const [overview, groups, friends, activity] = await Promise.all([
+  const [overview, groups, friends, requests, activity] = await Promise.all([
     getOverview(profile.id),
     listMyGroups(),
     listFriends(),
+    // Same query as listFriends, cached, so this costs nothing extra.
+    listFriendRequests(),
     // Ordered by when somebody last touched it, not by the date written on it.
     // A backdated expense is still news; sorting by expense_date buried it
     // below everything else while the balance it moved stayed on screen.
@@ -116,6 +118,22 @@ export default async function DashboardPage({
         >
           Signed in. Welcome back, {profile.display_name}.
         </p>
+      )}
+
+      {/* A request is invisible unless it is said somewhere you already look, and
+          nobody can split with you until you answer it. */}
+      {requests.incoming.length > 0 && (
+        <Link
+          href="/friends"
+          className="mb-6 flex items-center justify-between gap-3 rounded-2xl border border-accent/50 bg-raised p-4 text-sm transition-colors hover:border-accent"
+        >
+          <span className="min-w-0">
+            {requests.incoming.length === 1
+              ? `${requests.incoming[0].displayName} wants to be friends`
+              : `${requests.incoming.length} people want to be friends`}
+          </span>
+          <span className="shrink-0 font-semibold text-accent">Answer &rarr;</span>
+        </Link>
       )}
 
       {overview.overall.size === 0 ? (
