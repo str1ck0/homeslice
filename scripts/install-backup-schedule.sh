@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
-# Install (or remove) the daily production backup as a launchd agent.
+# Install (or remove) the production backup as a launchd agent.
 #
-#   ./scripts/install-backup-schedule.sh            # install, runs daily at 13:00
-#   ./scripts/install-backup-schedule.sh --at 09:30 # a different time
+#   ./scripts/install-backup-schedule.sh            # install: tries hourly, one snapshot a day
 #   ./scripts/install-backup-schedule.sh --status   # is it loaded? when did it last run?
 #   ./scripts/install-backup-schedule.sh --uninstall
 #
@@ -18,8 +17,6 @@ set -euo pipefail
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 LABEL="com.str1ck0.homeslice.backup"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
-HOUR=13
-MINUTE=0
 
 case "${1:-}" in
   --uninstall)
@@ -41,12 +38,6 @@ case "${1:-}" in
       || echo "  (no log yet)"
     exit 0
     ;;
-  --at)
-    HOUR="${2%%:*}"
-    MINUTE="${2##*:}"
-    # Strip a leading zero so 09 is nine and not an invalid octal literal.
-    HOUR=$((10#$HOUR)); MINUTE=$((10#$MINUTE))
-    ;;
 esac
 
 mkdir -p "$HOME/Library/LaunchAgents"
@@ -64,10 +55,13 @@ cat > "$PLIST" <<PLIST_EOF
     <string>$REPO/scripts/backup-prod-scheduled.sh</string>
   </array>
 
+  <!-- Every hour on the hour. The script exits at once when today's snapshot
+       already exists, so this is one backup a day with many chances to
+       recover from a failed attempt. It used to be once, at 13:00, and a
+       Mac waking without Wi-Fi lost the whole day. -->
   <key>StartCalendarInterval</key>
   <dict>
-    <key>Hour</key><integer>$HOUR</integer>
-    <key>Minute</key><integer>$MINUTE</integer>
+    <key>Minute</key><integer>0</integer>
   </dict>
 
   <key>WorkingDirectory</key>
@@ -89,7 +83,7 @@ PLIST_EOF
 launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
 launchctl bootstrap "gui/$(id -u)" "$PLIST"
 
-printf 'Installed %s — daily at %02d:%02d.\n' "$LABEL" "$HOUR" "$MINUTE"
+echo "Installed $LABEL — tries hourly, keeps one snapshot a day."
 echo "  script: $REPO/scripts/backup-prod-scheduled.sh"
 echo "  log:    ~/homeslice-backups/backup.log"
 echo
