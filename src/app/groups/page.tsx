@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getCurrentProfile } from '@/server/services/session'
-import { listMyGroups } from '@/server/services/groups'
+import { listArchivedGroups, listMyGroups } from '@/server/services/groups'
 import { debtLinesInGroup, getOverview, sumLines } from '@/server/services/overview'
 import {
   Avatar,
@@ -24,7 +24,11 @@ export default async function GroupsPage({
   const profile = await getCurrentProfile()
   if (!profile) redirect('/auth')
 
-  const [groups, overview] = await Promise.all([listMyGroups(), getOverview(profile.id)])
+  const [groups, archived, overview] = await Promise.all([
+    listMyGroups(),
+    listArchivedGroups(),
+    getOverview(profile.id),
+  ])
 
   // Expenses that belong to no group still have to live somewhere, or they are
   // invisible from here. Splitwise solves this with a pseudo-group row and it
@@ -129,6 +133,39 @@ export default async function GroupsPage({
             </li>
           )}
         </ul>
+      )}
+
+      {/* Out of the way, not out of reach: an archived group still has its
+          history and can still hold a balance, so it stays one tap away. */}
+      {archived.length > 0 && (
+        <section className="mt-8">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted">
+            Archived
+          </h2>
+          <ul className="flex flex-col gap-2">
+            {archived.map((group) => {
+              const totals = sumLines(debtLinesInGroup(overview, profile.id, group.id))
+              return (
+                <li key={group.id}>
+                  <Link
+                    href={`/groups/${group.id}`}
+                    className="flex items-center gap-3 rounded-2xl border border-edge p-3 transition-colors hover:border-accent/50"
+                  >
+                    <Avatar name={group.name} url={group.avatarUrl} size={36} />
+                    <p className="min-w-0 flex-1 truncate font-medium text-muted">{group.name}</p>
+                    <div className="shrink-0 text-right">
+                      {totals.size === 0 ? (
+                        <span className="text-sm text-muted">settled up</span>
+                      ) : (
+                        <PersonBalance totals={totals} owesYouLabel="you're owed" />
+                      )}
+                    </div>
+                  </Link>
+                </li>
+              )
+            })}
+          </ul>
+        </section>
       )}
     </PageShell>
   )

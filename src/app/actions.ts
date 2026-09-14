@@ -20,6 +20,7 @@ import {
   removeGroupMember,
   leaveGroup,
   setGroupAvatar,
+  setGroupArchived,
   type UpdateGroupInput,
 } from '@/server/services/groups'
 import { updateProfile, setAvatar, type UpdateProfileInput } from '@/server/services/profile'
@@ -192,6 +193,22 @@ export async function updateProfileAction(input: UpdateProfileInput): Promise<Ac
     await updateProfile(input)
     revalidatePath('/account')
     revalidatePath('/dashboard')
+    return { ok: true }
+  } catch (error) {
+    return toResult(error)
+  }
+}
+
+export async function setGroupArchivedAction(
+  groupId: string,
+  archived: boolean
+): Promise<ActionResult> {
+  try {
+    await setGroupArchived(groupId, archived)
+    revalidatePath(`/groups/${groupId}`)
+    revalidatePath('/groups')
+    revalidatePath('/dashboard')
+    revalidatePath('/expenses/new')
     return { ok: true }
   } catch (error) {
     return toResult(error)

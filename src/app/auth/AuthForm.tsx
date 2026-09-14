@@ -3,13 +3,15 @@
 import { useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { safeRedirectPath } from '@/core/redirect'
 
 type Mode = 'signin' | 'signup' | 'magic' | 'forgot'
 
 export default function AuthForm() {
   const router = useRouter()
   const params = useSearchParams()
-  const next = params.get('next') ?? '/dashboard'
+  // Anyone can write ?next= into a link, so only a path on this site is used.
+  const next = safeRedirectPath(params.get('next'))
 
   const [mode, setMode] = useState<Mode>('signin')
   const [email, setEmail] = useState('')

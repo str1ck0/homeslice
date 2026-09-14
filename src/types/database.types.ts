@@ -988,6 +988,7 @@ export type Database = {
       }
       current_profile_id: { Args: never; Returns: string }
       generate_invite_code: { Args: never; Returns: string }
+      group_has_history: { Args: { target_group: string }; Returns: boolean }
       is_expense_participant: {
         Args: { target_expense: string }
         Returns: boolean

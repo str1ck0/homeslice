@@ -154,6 +154,8 @@ is a conflict you resolve; leave it uncommitted and the worst case is worse.
 - **`setBusy(false)` is not a double-submit guard.** Use a `useRef`. Nineteen
   identical groups came from exactly this.
 - **Expense and settlement history is append-only.** Anyone in an expense may
-  change the expense; nobody may change the record of having changed it.
+  change the expense; nobody may change the record of having changed it. Nor
+  delete the expense itself: the API has no delete on expenses or settlements,
+  and a group with history cannot be deleted, only archived.
 
 `docs/STATUS.md` has the longer list, with the reasoning behind each.

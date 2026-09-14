@@ -209,13 +209,74 @@ read a single table from.
 ./scripts/backup-prod.sh
 ```
 
-Writes every row of production's public schema as JSON to
-`~/homeslice-backups/<timestamp>/`, outside the repo so it cannot be committed
-by accident. Passwordless, through the Management API.
+Runs by itself too: a launchd agent tries hourly and keeps one snapshot a day,
+the last 30 of them (`./scripts/install-backup-schedule.sh --status`). Each
+snapshot is a directory in `~/homeslice-backups/<timestamp>/`, outside the repo
+so it cannot be committed by accident:
 
-It is a safety net, not a restorable dump: no `auth.users`, no storage objects,
-no schema. For one of those you need the database password and
-`supabase db dump --linked -f dump.sql`.
+| File | What |
+| --- | --- |
+| `<table>.json` | every row of every public table |
+| `auth_users.json` | every login: id, email, sign-up metadata |
+| `auth_identities.json` | how each login signs in |
+| `storage_objects.json` | which photos existed at that moment |
+
+Photos are downloaded to `~/homeslice-backups/storage/<bucket>/…`, one mirror
+shared by every snapshot. It only ever adds, so a photo deleted in the app is
+still there.
+
+**Logins are in it so a restore needs no detective work.** Every profile points
+at a login by id. With the logins restored under the same ids, every profile is
+attached again with nothing to match up by hand.
+
+**Password hashes are deliberately not in it.** The backup sits on a laptop, and
+a hash is worth more to whoever takes the laptop than to a restore. After one,
+people sign in with "Email me a link".
+
+Rows and logins come through the Management API with the keychain token. Photos
+need the service-role key, which the script reads from `.env.prod.local` in the
+main checkout, so that file has to stay there. The schema itself is not in the
+snapshot; the migrations are the schema.
+
+### Restoring, in outline
+
+Not rehearsed. Always into a new, empty project, never over a live one.
+
+1. `supabase db push` the migrations into it: tables, policies, buckets.
+2. Logins first, under their original ids. Turn off the signup trigger for the
+   load (`alter table auth.users disable trigger on_auth_user_created`), since
+   the profiles are coming from the backup. Insert `auth_users.json` into
+   `auth.users` with `aud` and `role` both `authenticated` and no password, then
+   `auth_identities.json` into `auth.identities`. Turn the trigger back on.
+3. Public tables, parents first: `profiles`, `categories` (after deleting the
+   ones the baseline migration seeded, because expenses point at the backup's
+   ids), `groups`, `group_members`, `friendships`, `expenses` with their
+   `expense_participants` in the same transaction (the balance check runs at
+   commit), then `expense_images`, `expense_events`, `settlements` and
+   `settlement_events`.
+4. Upload the mirror back into the buckets at the same paths, and rewrite the
+   project host in `profiles.avatar_url` and `groups.avatar_url`.
+5. Everyone signs in with "Email me a link".
+
+## Deleting something for real
+
+Nothing in the app permanently deletes an expense, a payment, or a group with
+history in it, and since `20260914010000` nobody with the app's key and a
+session can either. Deleting in the app sets `deleted_at`, which is what Restore
+undoes.
+
+When something genuinely has to go — a test entry, a duplicate you never want
+to see struck through again — do it as the database owner, on purpose:
+
+```bash
+./scripts/backup-prod.sh                     # first, every time
+./scripts/db-query.sh --prod "select id, description, amount_cents, created_at from expenses where description ilike '%taxi%';"
+./scripts/db-query.sh --prod "delete from expenses where id = '<the id>';"
+```
+
+Deleting an expense takes its participants, its photo rows and its history with
+it. Deleting a group takes everything in it. The photo files stay in storage,
+unreferenced.
 
 **This is the only backup that exists.** Checked in the dashboard on 20 August:
 the project is on the Free plan, and *"Free Plan does not include project

@@ -1,12 +1,15 @@
 /**
  * Client-side image compression.
  *
- * Phone cameras produce 3-5 MB photos. A receipt only needs to be readable,
- * so resizing to fit within 1600px and re-encoding as JPEG typically gets it
- * under 300 KB — which matters on mobile data and keeps storage costs at zero.
+ * Phone cameras produce 3-5 MB photos. Resizing and re-encoding as JPEG takes
+ * that down by an order of magnitude, which matters on mobile data and against
+ * the free plan's 1 GB of storage.
  *
- * Receipts get a larger bound than avatars because the point is to read the
- * line items back later.
+ * The defaults here are generous; callers choose their own. Receipts use
+ * 1400px at 0.72 (see uploadReceipts), because the point is to read the line
+ * items back later, and avatars a 512px square. The defaults used to be what
+ * receipts got, and averaged 550 KB a photo — not the 300 KB this comment once
+ * promised.
  */
 
 export interface CompressOptions {

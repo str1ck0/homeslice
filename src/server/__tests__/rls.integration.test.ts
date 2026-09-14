@@ -279,11 +279,14 @@ describeIntegration('RLS and expense RPCs', () => {
     })
 
     it('stops a group member escalating themselves to admin', async () => {
-      await bob.client
+      // Bob's own row. This test used to try Alice's, which was refused, and so
+      // it passed the whole time a member could promote themselves.
+      const { error } = await bob.client
         .from('group_members')
         .update({ role: 'admin' })
         .eq('group_id', groupId)
-        .eq('profile_id', alice.profileId)
+        .eq('profile_id', bob.profileId)
+      expect(error).not.toBeNull()
 
       const { data } = await alice.client
         .from('group_members')

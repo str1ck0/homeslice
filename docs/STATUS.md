@@ -28,9 +28,11 @@ The core Splitwise loop is done and has been used by two real people.
   accepts. Sharing an expense still befriends the other people in it.
   Nobody can read anyone else's email address through the API.
 - **Groups** — create, rename, join by invite code, free-text label, add
-  friends, remove members, leave, delete. No type enum: every group can do
+  friends, remove members, leave, archive. No type enum: every group can do
   everything, and no currency either — a group runs in as many currencies as
-  your trip does.
+  your trip does. Only an empty group can be deleted (since 14 September); one
+  with any history, deleted entries included, is archived instead, which moves
+  it to the bottom of the list and changes nothing else.
 - **Shared editing** — anyone in an expense can edit or delete it, not just
   whoever typed it in, and every add, edit and delete is recorded on the expense
   with who did it and what changed. The record is append-only: a participant can
@@ -280,6 +282,22 @@ deliberately, because a repeat there is idempotent or harmless.
 policies and deliberately no update or delete. Anyone in an expense may change
 the expense; nobody may change the record of having changed it. If you add a way
 to edit events, that guarantee is gone.
+
+**Nothing in the ledger can be deleted through the API** (`20260914010000`).
+Expenses and settlements have no delete policy and no delete grant; deleting in
+the app has always been `deleted_at`, which is what Restore undoes. A group with
+any history cannot be deleted either, because every child table cascades from
+it. Before this, anyone in an expense could hard-delete it from a browser
+console and its `expense_events` went with it. A real deletion is done by hand
+as the database owner — see "Deleting something for real" in `docs/DATABASE.md`.
+
+**Membership changes only through the functions that check who is asking.**
+Nobody inserts a `group_members` row directly; `create_group`,
+`join_group_by_code` and `add_group_member` do. A non-admin can leave and change
+nothing else about their row, which `guard_membership_update` enforces. It
+polices only `current_user = 'authenticated'`, so the definer functions (which
+legitimately clear `left_at` on rejoin) pass — keep it `SECURITY INVOKER` or it
+polices nothing.
 
 **Never format money with `toLocaleString`.** The runtime's locale data is not
 the same everywhere: `en-ZA` renders 123450 cents as "R1,234.50" under Node and

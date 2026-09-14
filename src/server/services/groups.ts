@@ -160,14 +160,30 @@ export async function joinGroupByCode(code: string): Promise<string> {
   return data as string
 }
 
+/** The groups you are in that are still in use. */
 export async function listMyGroups(): Promise<GroupSummary[]> {
+  return listGroups({ archived: false })
+}
+
+/**
+ * Groups an admin has archived. Hidden from the main list and the expense
+ * form's group picker, never from balances or the ledger.
+ */
+export async function listArchivedGroups(): Promise<GroupSummary[]> {
+  return listGroups({ archived: true })
+}
+
+async function listGroups({ archived }: { archived: boolean }): Promise<GroupSummary[]> {
   const supabase = await createClient()
 
-  const { data, error } = await supabase
+  const query = supabase
     .from('groups')
     .select('id, name, label, icon, avatar_url, currency, invite_code, group_members(count)')
-    .is('archived_at', null)
-    .order('created_at', { ascending: false })
+
+  const { data, error } = await (archived
+    ? query.not('archived_at', 'is', null)
+    : query.is('archived_at', null)
+  ).order('created_at', { ascending: false })
 
   if (error) throw new Error(error.message)
 
@@ -377,11 +393,12 @@ export interface GroupContents {
 }
 
 /**
- * What deleting this group would destroy.
+ * How much history this group holds — which decides whether it can be deleted
+ * or only archived.
  *
- * Every child table cascades from `groups`, so a delete takes the expenses and
- * settlements with it. The UI asks for the group's name typed out when this
- * comes back non-empty, and only then.
+ * Deleted expenses count. They are still history, Restore still works on them,
+ * and the database counts them too (`group_has_history`) when it refuses the
+ * delete, so the button offered here must agree with it.
  */
 export async function getGroupContents(groupId: string): Promise<GroupContents> {
   const supabase = await createClient()
@@ -390,8 +407,7 @@ export async function getGroupContents(groupId: string): Promise<GroupContents> 
     supabase
       .from('expenses')
       .select('id', { count: 'exact', head: true })
-      .eq('group_id', groupId)
-      .is('deleted_at', null),
+      .eq('group_id', groupId),
     supabase
       .from('settlements')
       .select('id', { count: 'exact', head: true })
@@ -405,15 +421,45 @@ export async function getGroupContents(groupId: string): Promise<GroupContents> 
 }
 
 /**
- * Delete a group outright, along with everything in it.
+ * Archive a group, or bring it back.
  *
- * Admin-only, enforced by the `groups_delete` policy rather than here — a
- * non-admin's delete removes no rows and is reported as such rather than
- * silently claiming success.
+ * What a group with history gets instead of deletion. Admin-only, enforced by
+ * `groups_update` — a non-admin's update matches no rows and says so.
+ */
+export async function setGroupArchived(groupId: string, archived: boolean): Promise<void> {
+  z.string().uuid().parse(groupId)
+  await requireProfile()
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('groups')
+    .update({ archived_at: archived ? new Date().toISOString() : null })
+    .eq('id', groupId)
+    .select('id')
+
+  if (error) throw new Error(error.message)
+  if (!data || data.length === 0) {
+    throw new Error(`Only a group admin can ${archived ? 'archive' : 'unarchive'} this group`)
+  }
+}
+
+/**
+ * Delete an empty group — one made by mistake, before anything went in it.
+ *
+ * A group with any expense or payment in it, deleted ones included, cannot be
+ * deleted: the `groups_delete` policy refuses, because every child table
+ * cascades and the history would go with it. Checked here first only to say
+ * so plainly; the policy is what enforces it, and admin-only too.
  */
 export async function deleteGroup(groupId: string): Promise<string> {
   z.string().uuid().parse(groupId)
   await requireProfile()
+
+  const contents = await getGroupContents(groupId)
+  if (contents.expenseCount > 0 || contents.settlementCount > 0) {
+    throw new Error('This group has expenses or payments in it, so it can be archived but not deleted')
+  }
+
   const supabase = await createClient()
 
   const { data, error } = await supabase

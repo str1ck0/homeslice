@@ -297,7 +297,7 @@ describeIntegration('group membership and deletion', () => {
       expect(data).toEqual([])
     })
 
-    it('takes the expenses in it with it', async () => {
+    it('refuses to delete a group with expenses in it, and keeps them', async () => {
       const groupId = await newGroup('Has Expenses')
 
       const { data: expenseId, error: expenseError } = await owner.client.rpc('create_expense', {
@@ -315,10 +315,17 @@ describeIntegration('group membership and deletion', () => {
       })
       expect(expenseError).toBeNull()
 
-      await owner.client.from('groups').delete().eq('id', groupId).select('id')
+      // It used to cascade: one request from an admin took every expense, and
+      // the record of every expense, with it.
+      const { data: deleted } = await owner.client
+        .from('groups')
+        .delete()
+        .eq('id', groupId)
+        .select('id')
+      expect(deleted ?? []).toEqual([])
 
       const { data } = await admin!.from('expenses').select('id').eq('id', expenseId as string)
-      expect(data).toEqual([])
+      expect(data).toHaveLength(1)
     })
 
     it('refuses a non-admin member, deleting nothing', async () => {

@@ -12,6 +12,7 @@ import { searchable } from '@/core/search'
 import AvatarPicker from '@/components/AvatarPicker'
 import { setGroupAvatarAction } from '@/app/actions'
 import AddMemberButton from './AddMemberButton'
+import ArchiveGroupButton from './ArchiveGroupButton'
 import DeleteGroupButton from './DeleteGroupButton'
 import MemberList from './MemberList'
 import RenameGroupButton from './RenameGroupButton'
@@ -101,6 +102,7 @@ export default async function GroupPage({
             <p className="text-sm text-muted">
               {group.label ? `${group.label} · ` : ''}
               {members.length} {members.length === 1 ? 'member' : 'members'}
+              {group.archived_at && ' · archived'}
             </p>
           </div>
         </div>
@@ -208,12 +210,17 @@ export default async function GroupPage({
               currentName={group.name}
               currentLabel={group.label}
             />
-            <DeleteGroupButton
-              groupId={id}
-              groupName={group.name}
-              expenseCount={contents.expenseCount}
-              settlementCount={contents.settlementCount}
-            />
+            {/* Deleting takes everything in the group with it, so only an empty
+                group offers it; the database refuses the rest anyway. */}
+            {contents.expenseCount > 0 || contents.settlementCount > 0 || group.archived_at ? (
+              <ArchiveGroupButton
+                groupId={id}
+                groupName={group.name}
+                archived={Boolean(group.archived_at)}
+              />
+            ) : (
+              <DeleteGroupButton groupId={id} groupName={group.name} />
+            )}
           </section>
         )}
       </main>

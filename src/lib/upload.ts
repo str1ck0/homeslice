@@ -96,7 +96,12 @@ export async function uploadReceipts(files: File[]): Promise<string[]> {
   const paths: string[] = []
 
   for (const file of files) {
-    const compressed = await compressImage(file)
+    // 1400px on the long edge at 0.72. The old 1600 at 0.82 averaged 550 KB a
+    // photo in production; this is about a third smaller. Checked on
+    // 14 September against small print in a real photo: 1400/0.72 still read
+    // cleanly, 1200/0.70 had started to smear, so this is about as far as it
+    // goes while a receipt stays a receipt.
+    const compressed = await compressImage(file, { maxWidth: 1400, maxHeight: 1400, quality: 0.72 })
     const path = `${user.id}/${crypto.randomUUID()}.jpg`
 
     const { error } = await supabase.storage
